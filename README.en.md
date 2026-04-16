@@ -54,6 +54,18 @@ An AI-powered music commentary generator designed to help music enthusiasts arti
 2. Select the desired commentary style (Emotional, Hype, or Expert).
 3. Copy the generated text for your social post or playlist description.
 
+## Deployment
+
+### Option A: Vercel Full-stack
+1. Import the repository in the Vercel dashboard.
+2. Add environment variable: `ZHIPU_API_KEY`.
+3. Vercel will automatically detect the Serverless Functions in the `api/` directory.
+
+### Option B: Render Backend + Vercel Frontend (Recommended)
+Since Vercel Hobby tier has a 10s timeout limit, we recommend deploying the backend to **Render**:
+1. **Render Deployment:** Create a new **Web Service**. Set the start command to `npm start` and add `ZHIPU_API_KEY`.
+2. **Frontend Link:** In Vercel, add `VITE_BACKEND_API_BASE_URL` with your Render URL, then redeploy correctly.
+
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

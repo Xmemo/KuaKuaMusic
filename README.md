@@ -54,6 +54,18 @@
 2. 选择期望的文案风格（走心、上头、或懂行）。
 3. 复制生成的文案，用于朋友圈、歌单简介或音乐社区评论。
 
+## 部署指南
+
+### 方案 A：Vercel 全栈部署
+1. 在 Vercel 控制台中导入该仓库。
+2. 添加环境变量：`ZHIPU_API_KEY`。
+3. Vercel 会自动识别 `api/` 目录下的 Serverless Functions 并完成上线。
+
+### 方案 B：Render 后端 + Vercel 前端 (推荐)
+由于 Vercel 免费版有 10 秒超时限制，建议将后端部署到 **Render**：
+1. **Render 部署：** 创建新的 **Web Service**，启动命令设为 `npm start`，添加 `ZHIPU_API_KEY`。
+2. **前端关联：** 在 Vercel 项目设置中，添加 `VITE_BACKEND_API_BASE_URL` 指向你的 Render 地址，重新部署前端。
+
 ## 开源协议
 
 本项目采用 MIT 协议开源 - 详情请参阅 [LICENSE](LICENSE) 文件。
