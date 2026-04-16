@@ -1,0 +1,6 @@
+{
+  "name": "夸夸音乐",
+  "description": "输入歌名，夸夸音乐会立刻生成 3 种风格的高质量夸歌文案（走心 / 上头 / 懂行）。",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
