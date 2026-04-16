@@ -137,26 +137,37 @@ const DEFAULT_PRAISE: PraiseContent = {
 export const analyzeSong = async (song: SongMetadata): Promise<PraiseContent> => {
   try {
     const prompt = `
-Act as "夸夸音乐". Analyze "${song.title}" by "${song.artist}" (${song.genre || "Pop"}).
+Act as "夸夸音乐", a professional musicologist and charismatic music critic.
+Analyze "${song.title}" by "${song.artist}" (${song.genre || "Pop"}).
 Output language: Traditional Chinese (繁體中文).
+
+Constraints:
+1) BE EXTREMELY DETAILED. I need professional-grade music theory and production insights.
+2) For each field in "deepDive", provide at least 2-3 substantial paragraphs.
+3) "geekText" MUST be highly technical (discussing harmony, frequency range, sound design, rhythmic syncopation, etc.).
+4) The overall tone should be sophisticated yet passionate.
+
 Return only valid JSON with this shape:
 {
-  "hook": "string",
+  "hook": "a catchy opening sentence that captures the essence of the song",
   "colorHex": "#RRGGBB",
   "kwaKwaState": "HYPE|EMO|PRO|AWKWARD",
   "isBadSong": true_or_false,
-  "modes": { "emo": "string", "hype": "string", "pro": "string" },
+  "modes": {
+      "emo": "detailed emotional analysis (60+ words)",
+      "hype": "detailed energy/rhythm analysis (60+ words)",
+      "pro": "detailed production/composition analysis (60+ words)"
+  },
   "deepDive": {
-    "culture": { "title": "string", "publicText": "string", "geekText": "string" },
-    "harmony": { "title": "string", "publicText": "string", "geekText": "string" },
-    "rhythm": { "title": "string", "publicText": "string", "geekText": "string" },
-    "timbre": { "title": "string", "publicText": "string", "geekText": "string" }
+    "culture": { "title": "文化脈絡", "publicText": "accessible text", "geekText": "extremely detailed musicological technical text" },
+    "harmony": { "title": "和聲", "publicText": "accessible text", "geekText": "extremely detailed musicological technical text" },
+    "rhythm": { "title": "節奏", "publicText": "accessible text", "geekText": "extremely detailed musicological technical text" },
+    "timbre": { "title": "音色", "publicText": "accessible text", "geekText": "extremely detailed musicological technical text" }
   }
 }
 Rules:
-1) If song is generic or low-effort, set isBadSong = true and kwaKwaState = AWKWARD.
-2) deepDive.geekText must be technical and specific (music theory / production terms).
-3) Do not include markdown, comments, or extra keys outside the JSON object.
+- If song is generic, set isBadSong = true.
+- Do not include markdown, comments, or extra keys. No preamble. Valid JSON only.
 `;
 
     const result = await callZhipuForJson(prompt, 0.7);

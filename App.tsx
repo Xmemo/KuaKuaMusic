@@ -23,8 +23,9 @@ function App() {
         if (songData && songData.title === title && songData.artist === artist) return;
         
         console.log("夸夸音乐 - New Song:", title);
-        setSongData({ title, artist, coverUrl, platform });
-        setAppState('HOME'); 
+        const meta = { title, artist, coverUrl, platform };
+        setSongData(meta);
+        handleHypeItInternal(meta);
       }
     };
 
@@ -48,7 +49,7 @@ function App() {
       try {
           const meta = await identifySong(q);
           setSongData(meta);
-          setAppState('HOME'); 
+          handleHypeItInternal(meta);
       } catch (e) {
           setErrorMsg("KwaKwa 找不到這首歌");
           setAppState('ERROR');
@@ -56,13 +57,16 @@ function App() {
   }
 
   const handleHypeIt = async () => {
-      if (!songData) return;
-      
+    if (!songData) return;
+    handleHypeItInternal(songData);
+  };
+
+  const handleHypeItInternal = async (meta: SongMetadata) => {
       setAppState('ANALYZING');
       setErrorMsg('');
 
       try {
-          const analysis = await analyzeSong(songData);
+          const analysis = await analyzeSong(meta);
           setPraiseData(analysis);
           setAppState('RESULT');
           if (analysis.isBadSong) setActiveTab('hype');

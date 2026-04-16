@@ -35,19 +35,17 @@ body {
   animation: bobo-float 3s ease-in-out infinite;
 }
 
-@keyframes gentle-jump {
+@keyframes micro-float {
   0%, 100% {
     transform: translateY(0);
-    animation-timing-function: cubic-bezier(0.8, 0, 1, 1);
   }
   50% {
-    transform: translateY(-12%);
-    animation-timing-function: cubic-bezier(0, 0, 0.2, 1);
+    transform: translateY(-4%);
   }
 }
 
-.animate-gentle-jump {
-  animation: gentle-jump 1s infinite;
+.animate-micro-float {
+  animation: micro-float 4s ease-in-out infinite;
 }
 
 .scrollbar-hide::-webkit-scrollbar {
