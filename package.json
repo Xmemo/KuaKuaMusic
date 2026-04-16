@@ -8,6 +8,7 @@
     "dev:web": "vite",
     "dev:api": "node server/proxy.mjs",
     "build": "vite build",
+    "start": "node server/proxy.mjs",
     "preview": "vite preview",
     "start:api": "node server/proxy.mjs"
   },
