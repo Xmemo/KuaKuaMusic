@@ -13,29 +13,7 @@ function App() {
   const [praiseData, setPraiseData] = useState<PraiseContent | null>(null);
   const [activeTab, setActiveTab] = useState<'emo' | 'hype' | 'pro'>('emo');
   const [errorMsg, setErrorMsg] = useState('');
-  const [dailyCount, setDailyCount] = useState(0);
 
-  // --- FREEMIUM LOGIC ---
-  useEffect(() => {
-    const today = new Date().toDateString();
-    const storedDate = localStorage.getItem('hypeTune_date');
-    const storedCount = parseInt(localStorage.getItem('hypeTune_count') || '0');
-
-    if (storedDate !== today) {
-        localStorage.setItem('hypeTune_date', today);
-        localStorage.setItem('hypeTune_count', '0');
-        setDailyCount(0);
-    } else {
-        setDailyCount(storedCount);
-    }
-  }, []);
-
-  const incrementUsage = () => {
-      const newCount = dailyCount + 1;
-      setDailyCount(newCount);
-      localStorage.setItem('hypeTune_count', newCount.toString());
-      return newCount;
-  };
 
   // --- CHROME LISTENER ---
   useEffect(() => {
@@ -65,6 +43,7 @@ function App() {
   };
 
   const performIdentification = async (q: string) => {
+      setErrorMsg('');
       setAppState('SEARCHING');
       try {
           const meta = await identifySong(q);
@@ -78,18 +57,13 @@ function App() {
 
   const handleHypeIt = async () => {
       if (!songData) return;
-      if (dailyCount >= DAILY_LIMIT) {
-          setAppState('PAYWALL');
-          return;
-      }
-
+      
       setAppState('ANALYZING');
       setErrorMsg('');
 
       try {
           const analysis = await analyzeSong(songData);
           setPraiseData(analysis);
-          incrementUsage();
           setAppState('RESULT');
           if (analysis.isBadSong) setActiveTab('hype');
       } catch (err) {
@@ -109,12 +83,8 @@ function App() {
 
   // --- STYLES ---
   const getBackgroundStyle = () => {
-    if (appState === 'RESULT' && praiseData?.colorHex) {
-      return {
-        background: `radial-gradient(circle at 50% 30%, ${praiseData.colorHex} 0%, #000000 80%)`,
-      };
-    }
-    return { background: 'radial-gradient(circle at 50% 50%, #18181b 0%, #000000 100%)' };
+    // Enforce a consistent dark theme even in result page
+    return { background: 'radial-gradient(circle at 50% 10%, #1e1e24 0%, #000000 70%)' };
   };
 
   // --- RENDERERS ---
@@ -158,7 +128,7 @@ function App() {
                   onClick={handleHypeIt}
                   className="mt-4 w-full bg-yellow-400 hover:bg-yellow-300 text-black font-black uppercase py-3 text-sm rounded-lg transition-transform active:scale-[0.98] flex items-center justify-center gap-2 tracking-wide"
               >
-                  ⚡ 立即生成夸歌文案（剩余 {DAILY_LIMIT - dailyCount} 次）
+                  ⚡ 立即生成夸歌文案
               </button>
           </div>
       ) : (
@@ -173,17 +143,17 @@ function App() {
         </form>
       )}
       
-      <div className="absolute bottom-4 text-[10px] text-zinc-600 font-mono">
-          v2.0 • {dailyCount}/{DAILY_LIMIT} CREDITS USED
+      <div className="absolute bottom-4 text-[10px] text-zinc-600 font-mono tracking-widest">
+          v2.0 • FOR UNLIMITED PRAISING
       </div>
     </div>
   );
 
   const renderLoading = () => (
     <div className="flex flex-col items-center justify-center min-h-screen text-center px-4">
-      <div className="relative mb-8">
-          <div className="absolute inset-0 bg-yellow-400 blur-2xl opacity-20 animate-pulse"></div>
-          <KwaKwa state={KwaKwaState.HYPE} className="w-40 h-40 relative z-10" />
+      <div className="relative mb-8 w-[22rem] max-w-[92vw] aspect-[11/6]">
+          <div className="absolute inset-0 bg-yellow-400/10 blur-3xl opacity-20 rounded-full"></div>
+          <KwaKwa state={KwaKwaState.HYPE} className="w-full h-full relative z-10" />
       </div>
       <h2 className="text-2xl font-black text-white italic transform -skew-x-6 mb-2">
         夸夸生成中...
@@ -196,22 +166,6 @@ function App() {
     </div>
   );
 
-  const renderPaywall = () => (
-      <div className="flex flex-col items-center justify-center min-h-screen text-center px-6 bg-black">
-          <KwaKwa state={KwaKwaState.OVERHEAT} className="w-40 h-40 mb-6" />
-          <h2 className="text-2xl font-black text-red-600 mb-2 uppercase tracking-tighter">System Overheat</h2>
-          <p className="text-zinc-400 text-sm mb-8">
-              Daily Limit Reached ({DAILY_LIMIT}/{DAILY_LIMIT})<br/>
-              CPU needs cooling.
-          </p>
-          <button className="w-full bg-white text-black font-black uppercase italic py-4 mb-4 hover:bg-zinc-200 transition-colors rounded">
-              🔥 Get Pro (Unlimited)
-          </button>
-          <button onClick={() => setAppState('HOME')} className="text-zinc-600 text-xs hover:text-white uppercase tracking-widest">
-              Come back tomorrow
-          </button>
-      </div>
-  );
 
   const renderResult = () => {
     if (!praiseData || !songData) return null;
@@ -309,7 +263,6 @@ function App() {
     >
       {appState === 'HOME' && renderHome()}
       {(appState === 'SEARCHING' || appState === 'ANALYZING') && renderLoading()}
-      {appState === 'PAYWALL' && renderPaywall()}
       {appState === 'ERROR' && (
            <div className="flex flex-col items-center justify-center min-h-screen text-center px-4">
             <KwaKwa state={KwaKwaState.OVERHEAT} className="w-32 h-32 mb-6" />

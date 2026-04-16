@@ -41,6 +41,5 @@ export interface PraiseContent {
   isBadSong: boolean;
 }
 
-export type AppState = 'HOME' | 'SEARCHING' | 'ANALYZING' | 'RESULT' | 'ERROR' | 'PAYWALL';
+export type AppState = 'HOME' | 'SEARCHING' | 'ANALYZING' | 'RESULT' | 'ERROR';
 
-export const DAILY_LIMIT = 3;

@@ -10,7 +10,7 @@ const KwaKwa: React.FC<KwaKwaProps> = ({ state, className = "" }) => {
   const getAnimation = () => {
     switch (state) {
       case KwaKwaState.HYPE:
-        return "animate-bounce";
+        return "animate-gentle-jump";
       case KwaKwaState.OVERHEAT:
         return "animate-pulse";
       case KwaKwaState.IDLE:
