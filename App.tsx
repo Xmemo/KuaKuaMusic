@@ -51,7 +51,9 @@ function App() {
           setSongData(meta);
           handleHypeItInternal(meta);
       } catch (e) {
-          setErrorMsg("KwaKwa 找不到這首歌");
+          console.error("Identification Error:", e);
+          const msg = e instanceof Error ? e.message : "KwaKwa 找不到這首歌";
+          setErrorMsg(msg);
           setAppState('ERROR');
       }
   }
@@ -71,8 +73,9 @@ function App() {
           setAppState('RESULT');
           if (analysis.isBadSong) setActiveTab('hype');
       } catch (err) {
-          console.error(err);
-          setErrorMsg("KwaKwa 過熱了... (Server Busy)");
+          console.error("Analysis Error:", err);
+          const msg = err instanceof Error ? err.message : "KwaKwa 過熱了... (Server Busy)";
+          setErrorMsg(msg);
           setAppState('ERROR');
       }
   };

@@ -8,13 +8,37 @@ type ProxyResponse = {
 };
 
 const parseJsonFromModel = (raw: string): any => {
+  try {
+    // Attempt 1: Direct parse
+    return JSON.parse(raw);
+  } catch {
+    console.warn("[zhipu] Direct parse failed, attempting regex extraction...");
+  }
+
+  // Attempt 2: Extract JSON from markdown or text
+  const jsonMatch = raw.match(/\{[\s\S]*\}/);
+  if (jsonMatch) {
+    try {
+      const extracted = jsonMatch[0];
+      return JSON.parse(extracted);
+    } catch (e) {
+      console.error("[zhipu] Regex extraction parse failed:", e);
+    }
+  }
+
+  // Attempt 3: Strip common markdown tags and try again
   const cleaned = raw
     .replace(/^```json\s*/i, "")
     .replace(/^```\s*/i, "")
     .replace(/\s*```$/i, "")
     .trim();
 
-  return JSON.parse(cleaned);
+  try {
+    return JSON.parse(cleaned);
+  } catch (e) {
+    console.error("[zhipu] All parsing attempts failed. Raw text:", raw);
+    throw new Error("Malformatted AI Response: Content could not be parsed as JSON.");
+  }
 };
 
 const callZhipuForJson = async (prompt: string, temperature = 0.5) => {
@@ -37,7 +61,8 @@ const callZhipuForJson = async (prompt: string, temperature = 0.5) => {
     } catch {
       errorText = await response.text();
     }
-    throw new Error(`Proxy request failed: ${response.status} ${errorText}`);
+    console.error(`[zhipu] API Error (${response.status}):`, errorText);
+    throw new Error(`API Endpoint Error: ${response.status} - ${errorText || 'Unknown Connection Issue'}`);
   }
 
   const data = (await response.json()) as ProxyResponse;
