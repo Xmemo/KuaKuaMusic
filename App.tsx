@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import KwaKwa from './components/KwaKwa';
 import FlipCard from './components/FlipCard';
-import { identifySong, analyzeSong } from './services/zhipuService';
+import { searchSongs, analyzeSong, askAboutSong } from './services/musicService';
 import { AppState, SongMetadata, PraiseContent, KwaKwaState, DAILY_LIMIT } from './types';
 
 declare var chrome: any;
@@ -13,6 +13,12 @@ function App() {
   const [praiseData, setPraiseData] = useState<PraiseContent | null>(null);
   const [activeTab, setActiveTab] = useState<'emo' | 'hype' | 'pro'>('emo');
   const [errorMsg, setErrorMsg] = useState('');
+  const [searchResults, setSearchResults] = useState<SongMetadata[]>([]);
+  const [question, setQuestion] = useState('');
+  const [questionAnswers, setQuestionAnswers] = useState<{ question: string; answer: string }[]>([]);
+  const [isAsking, setIsAsking] = useState(false);
+  const [questionError, setQuestionError] = useState('');
+  const [actionNotice, setActionNotice] = useState('');
 
 
   // --- CHROME LISTENER ---
@@ -25,6 +31,11 @@ function App() {
         console.log("夸夸音乐 - New Song:", title);
         const meta = { title, artist, coverUrl, platform };
         setSongData(meta);
+        setSearchResults([]);
+        setPraiseData(null);
+        setQuestion('');
+        setQuestionAnswers([]);
+        setQuestionError('');
         handleHypeItInternal(meta);
       }
     };
@@ -45,17 +56,32 @@ function App() {
 
   const performIdentification = async (q: string) => {
       setErrorMsg('');
+      setSearchResults([]);
       setAppState('SEARCHING');
       try {
-          const meta = await identifySong(q);
-          setSongData(meta);
-          handleHypeItInternal(meta);
+          const matches = await searchSongs(q);
+          if (!matches.length) {
+              setErrorMsg('沒有找到相符歌曲，請試試「歌名 + 歌手」或貼上歌曲連結。');
+              setAppState('HOME');
+              return;
+          }
+          setSearchResults(matches);
+          setAppState('SEARCH_RESULTS');
       } catch (e) {
-          console.error("Identification Error:", e);
-          const msg = e instanceof Error ? e.message : "KwaKwa 找不到這首歌";
+          console.error("Music Search Error:", e);
+          const msg = e instanceof Error ? e.message : "歌曲搜索失败，请稍后重试。";
           setErrorMsg(msg);
-          setAppState('ERROR');
+          setAppState('HOME');
       }
+  }
+
+  const handleSelectSong = (meta: SongMetadata) => {
+      setSongData(meta);
+      setSearchResults([]);
+      setPraiseData(null);
+      setQuestionAnswers([]);
+      setQuestionError('');
+      handleHypeItInternal(meta);
   }
 
   const handleHypeIt = async () => {
@@ -80,11 +106,75 @@ function App() {
       }
   };
 
+  const handleAskQuestion = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!songData || !praiseData || !question.trim() || isAsking) return;
+    const currentQuestion = question.trim();
+    setQuestion('');
+    setIsAsking(true);
+    setQuestionError('');
+    try {
+      const answer = await askAboutSong(songData, praiseData, currentQuestion, questionAnswers);
+      setQuestionAnswers((previous) => [...previous, { question: currentQuestion, answer }]);
+    } catch (error) {
+      setQuestionError(error instanceof Error ? error.message : '回答失败，请重试。');
+    } finally {
+      setIsAsking(false);
+    }
+  };
+
+  const handleCopyQuote = async () => {
+    if (!praiseData) return;
+    try {
+      await navigator.clipboard.writeText(praiseData.modes[activeTab]);
+      setActionNotice('当前夸歌文案已复制');
+    } catch {
+      setActionNotice('复制失败，请手动选择文案');
+    }
+  };
+
+  const handleSaveAnalysis = () => {
+    if (!songData || !praiseData) return;
+    const sections: Array<[string, { publicText: string; geekText: string }]> = [
+      ['文化脉络', praiseData.deepDive.culture],
+      ['和声', praiseData.deepDive.harmony],
+      ['节奏', praiseData.deepDive.rhythm],
+      ['音色', praiseData.deepDive.timbre],
+    ];
+    const lines = [
+      songData.title + ' — ' + songData.artist,
+      '',
+      praiseData.hook,
+      '',
+      '走心：' + praiseData.modes.emo,
+      '上头：' + praiseData.modes.hype,
+      '懂行：' + praiseData.modes.pro,
+      '',
+    ];
+    for (const [title, item] of sections) {
+      lines.push(title, item.publicText, item.geekText, '');
+    }
+    const blob = new Blob([lines.join(String.fromCharCode(10))], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = (songData.title + ' - 夸夸音乐分析.txt').replace(/[\\/:*?"<>|]/g, '_');
+    link.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    setActionNotice('分析文本已下载');
+  };
+
   const handleReset = () => {
     setAppState('HOME');
     setQuery('');
     setSongData(null);
     setPraiseData(null);
+    setSearchResults([]);
+    setQuestion('');
+    setQuestionAnswers([]);
+    setQuestionError('');
+    setActionNotice('');
+    setErrorMsg('');
     setActiveTab('emo');
   };
 
@@ -139,15 +229,50 @@ function App() {
               </button>
           </div>
       ) : (
-        <form onSubmit={handleManualSearch} className="w-full max-w-sm relative mb-8">
+        <form onSubmit={handleManualSearch} className="w-full max-w-sm relative mb-4">
             <input
             type="text"
+            maxLength={300}
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="正在監聽...或手動輸入"
+            onChange={(e) => { setQuery(e.target.value); setErrorMsg(''); setSearchResults([]); }}
+            placeholder="粘贴歌曲链接，或输入歌名 / 歌手"
             className="w-full bg-white/10 border border-white/20 rounded-full py-3 px-6 text-center text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-yellow-400 focus:ring-1 focus:ring-yellow-400 transition-all font-mono"
             />
+            <button type="submit" className="mt-3 w-full bg-yellow-400 hover:bg-yellow-300 text-black font-black py-3 text-sm rounded-lg transition-transform active:scale-[0.98]">
+              搜索歌曲
+            </button>
         </form>
+      )}
+
+      {errorMsg && appState !== 'ERROR' && (
+        <p role="alert" className="w-full max-w-sm text-sm text-rose-300 bg-rose-400/10 border border-rose-300/20 rounded-lg px-4 py-3 mb-4">
+          {errorMsg}
+        </p>
+      )}
+
+      {searchResults.length > 0 && (
+        <div className="w-full max-w-xl space-y-2 mb-8 text-left">
+          <div className="text-xs uppercase tracking-widest text-white/40 px-1">搜索结果 · 选择一首开始分析</div>
+          {searchResults.map((song) => (
+            <button
+              key={song.id || song.title + song.artist}
+              type="button"
+              onClick={() => handleSelectSong(song)}
+              className="w-full flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 p-3 text-left transition-colors"
+            >
+              {song.coverUrl ? (
+                <img src={song.coverUrl} alt="" className="w-12 h-12 rounded object-cover flex-shrink-0" />
+              ) : (
+                <div className="w-12 h-12 rounded bg-white/10 flex items-center justify-center text-yellow-300">♪</div>
+              )}
+              <span className="min-w-0 flex-1">
+                <span className="block truncate font-bold text-white">{song.title}</span>
+                <span className="block truncate text-xs text-zinc-400">{song.artist}{song.album ? ' · ' + song.album : ''}</span>
+              </span>
+              <span className="text-xs font-bold text-yellow-300 whitespace-nowrap">分析 →</span>
+            </button>
+          ))}
+        </div>
       )}
       
       <div className="absolute bottom-4 text-[10px] text-zinc-600 font-mono tracking-widest">
@@ -207,7 +332,9 @@ function App() {
            </div>
            
            <h1 className="text-3xl font-bold text-white mb-1 tracking-tight">{songData.title}</h1>
-           <p className="text-white/60 mb-6 font-mono text-sm uppercase tracking-widest">{songData.artist}</p>
+           <p className="text-white/60 mb-2 font-mono text-sm uppercase tracking-widest">{songData.artist}</p>
+           <p className="text-white/75 text-sm max-w-lg leading-relaxed mb-3">{praiseData.hook}</p>
+           <p className="text-white/30 text-[10px] mb-4">根据曲目信息生成解读；没有直接播放或读取音频。</p>
         </section>
 
         {/* AREA B: Highlights (Tabs) */}
@@ -250,15 +377,47 @@ function App() {
             </div>
         </section>
 
+        {/* Follow-up music Q&A */}
+        <section className="mb-10">
+            <h3 className="text-white/80 text-lg font-bold mb-2">继续问这首歌</h3>
+            <p className="text-white/40 text-xs mb-4">可以追问刚才的分析、某个乐段，或你想听懂的音乐概念。</p>
+            <form onSubmit={handleAskQuestion} className="flex gap-2">
+              <input
+                value={question}
+                maxLength={600}
+                onChange={(e) => setQuestion(e.target.value)}
+                placeholder="例如：副歌为什么听起来更有张力？"
+                className="min-w-0 flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-yellow-400"
+              />
+              <button
+                type="submit"
+                disabled={isAsking || !question.trim()}
+                className="px-4 py-3 rounded-xl bg-yellow-400 text-black font-bold text-xs disabled:opacity-50"
+              >
+                {isAsking ? '思考中…' : '提问'}
+              </button>
+            </form>
+            {questionError && <p role="alert" className="text-rose-300 text-xs mt-3">{questionError}</p>}
+            <div className="space-y-3 mt-4">
+              {questionAnswers.map((item, index) => (
+                <article key={index} className="rounded-xl border border-white/10 bg-white/5 p-4">
+                  <p className="text-yellow-200 text-sm font-bold mb-2">你：{item.question}</p>
+                  <p className="text-white/80 text-sm leading-relaxed whitespace-pre-wrap">{item.answer}</p>
+                </article>
+              ))}
+            </div>
+        </section>
+
         {/* Footer */}
         <div className="flex gap-4">
-             <button className="flex-1 bg-white/10 hover:bg-white/20 text-white text-xs py-4 rounded-xl font-bold uppercase tracking-wider transition-colors border border-white/5">
-                Share Quote
+             <button onClick={handleCopyQuote} className="flex-1 bg-white/10 hover:bg-white/20 text-white text-xs py-4 rounded-xl font-bold uppercase tracking-wider transition-colors border border-white/5">
+                复制当前夸歌文案
             </button>
-            <button className="flex-1 bg-yellow-400 hover:bg-yellow-300 text-black text-xs py-4 rounded-xl font-bold uppercase tracking-wider transition-colors shadow-lg shadow-yellow-400/20">
-                Save Card
+            <button onClick={handleSaveAnalysis} className="flex-1 bg-yellow-400 hover:bg-yellow-300 text-black text-xs py-4 rounded-xl font-bold uppercase tracking-wider transition-colors shadow-lg shadow-yellow-400/20">
+                下载分析文本
             </button>
         </div>
+        {actionNotice && <p aria-live="polite" className="text-center text-xs text-white/50 mt-3">{actionNotice}</p>}
       </div>
     );
   };
@@ -268,7 +427,7 @@ function App() {
       className="min-h-screen transition-colors duration-1000 ease-in-out font-sans selection:bg-yellow-400 selection:text-black"
       style={getBackgroundStyle()}
     >
-      {appState === 'HOME' && renderHome()}
+      {(appState === 'HOME' || appState === 'SEARCH_RESULTS') && renderHome()}
       {(appState === 'SEARCHING' || appState === 'ANALYZING') && renderLoading()}
       {appState === 'ERROR' && (
            <div className="flex flex-col items-center justify-center min-h-screen text-center px-4">
