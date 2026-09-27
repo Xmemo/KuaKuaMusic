@@ -6,6 +6,8 @@ import { AppState, SongMetadata, PraiseContent, KwaKwaState, DAILY_LIMIT } from 
 
 declare var chrome: any;
 
+const SEARCH_RESULTS_PER_PAGE = 12;
+
 function App() {
   const [appState, setAppState] = useState<AppState>('HOME');
   const [query, setQuery] = useState('');
@@ -14,6 +16,7 @@ function App() {
   const [activeTab, setActiveTab] = useState<'emo' | 'hype' | 'pro'>('emo');
   const [errorMsg, setErrorMsg] = useState('');
   const [searchResults, setSearchResults] = useState<SongMetadata[]>([]);
+  const [searchPage, setSearchPage] = useState(1);
   const [question, setQuestion] = useState('');
   const [questionAnswers, setQuestionAnswers] = useState<{ question: string; answer: string }[]>([]);
   const [isAsking, setIsAsking] = useState(false);
@@ -57,6 +60,7 @@ function App() {
   const performIdentification = async (q: string) => {
       setErrorMsg('');
       setSearchResults([]);
+      setSearchPage(1);
       setAppState('SEARCHING');
       try {
           const matches = await searchSongs(q);
@@ -78,6 +82,7 @@ function App() {
   const handleSelectSong = (meta: SongMetadata) => {
       setSongData(meta);
       setSearchResults([]);
+      setSearchPage(1);
       setPraiseData(null);
       setQuestionAnswers([]);
       setQuestionError('');
@@ -170,6 +175,7 @@ function App() {
     setSongData(null);
     setPraiseData(null);
     setSearchResults([]);
+    setSearchPage(1);
     setQuestion('');
     setQuestionAnswers([]);
     setQuestionError('');
@@ -185,6 +191,11 @@ function App() {
   };
 
   // --- RENDERERS ---
+  const searchPageCount = Math.max(1, Math.ceil(searchResults.length / SEARCH_RESULTS_PER_PAGE));
+  const visibleSearchResults = searchResults.slice(
+    (searchPage - 1) * SEARCH_RESULTS_PER_PAGE,
+    searchPage * SEARCH_RESULTS_PER_PAGE,
+  );
 
   const renderHome = () => (
     <div className="flex flex-col items-center justify-center min-h-screen px-4 text-center pb-10 pt-10">
@@ -234,7 +245,7 @@ function App() {
             type="text"
             maxLength={300}
             value={query}
-            onChange={(e) => { setQuery(e.target.value); setErrorMsg(''); setSearchResults([]); }}
+            onChange={(e) => { setQuery(e.target.value); setErrorMsg(''); setSearchResults([]); setSearchPage(1); }}
             placeholder="粘贴歌曲链接，或输入歌名 / 歌手"
             className="w-full bg-white/10 border border-white/20 rounded-full py-3 px-6 text-center text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-yellow-400 focus:ring-1 focus:ring-yellow-400 transition-all font-mono"
             />
@@ -253,7 +264,7 @@ function App() {
       {searchResults.length > 0 && (
         <div className="w-full max-w-xl space-y-2 mb-8 text-left">
           <div className="text-xs uppercase tracking-widest text-white/40 px-1">搜索结果 · 选择一首开始分析</div>
-          {searchResults.map((song) => (
+          {visibleSearchResults.map((song) => (
             <button
               key={song.id || song.title + song.artist}
               type="button"
@@ -272,6 +283,27 @@ function App() {
               <span className="text-xs font-bold text-yellow-300 whitespace-nowrap">分析 →</span>
             </button>
           ))}
+          <div className="flex items-center justify-between gap-3 pt-2 px-1 text-xs text-white/50">
+            <span>第 {searchPage} / {searchPageCount} 页 · 共 {searchResults.length} 首</span>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                disabled={searchPage <= 1}
+                onClick={() => setSearchPage((page) => Math.max(1, page - 1))}
+                className="rounded-lg border border-white/10 px-3 py-2 text-white/70 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-30"
+              >
+                上一页
+              </button>
+              <button
+                type="button"
+                disabled={searchPage >= searchPageCount}
+                onClick={() => setSearchPage((page) => Math.min(searchPageCount, page + 1))}
+                className="rounded-lg border border-white/10 px-3 py-2 text-white/70 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-30"
+              >
+                下一页
+              </button>
+            </div>
+          </div>
         </div>
       )}
       
