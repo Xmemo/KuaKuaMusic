@@ -8,12 +8,15 @@ export enum KwaKwaState {
 }
 
 export interface SongMetadata {
+  id?: string;
   title: string;
   artist: string;
-  coverUrl?: string; 
+  coverUrl?: string;
   album?: string;
-  // Used by the LLM analysis service
   genre?: string;
+  previewUrl?: string;
+  trackUrl?: string;
+  releaseYear?: string;
   platform?: 'NETEASE' | 'QQ' | 'YOUTUBE' | 'MANUAL';
 }
 
@@ -41,5 +44,5 @@ export interface PraiseContent {
   isBadSong: boolean;
 }
 
-export type AppState = 'HOME' | 'SEARCHING' | 'ANALYZING' | 'RESULT' | 'ERROR';
+export type AppState = 'HOME' | 'SEARCHING' | 'SEARCH_RESULTS' | 'ANALYZING' | 'RESULT' | 'ERROR';
 

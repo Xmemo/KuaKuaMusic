@@ -1,72 +1,53 @@
-# 夸夸音乐 (PraiseMySong)
+# 夸夸音乐
 
-一个基于 AI 的音乐评论生成工具，旨在帮助音乐爱好者通过结构化、高质量的文案表达对音乐的热爱。
+夸夸音乐根据歌曲资料生成走心、上头、懂行三种逐歌分析，并提供文化脉络、和声、节奏、音色四个深入解读板块。分析结果下方可以继续提问。
 
-## 项目概述
+## 本地运行
 
-`夸夸音乐` 是一个轻量级的 AI 驱动应用，可生成细腻的音乐评论和社交媒体文案。它将感性的听觉印象转化为三种不同的风格——**走心 (Emotional)**、**上头 (Hype)** 和 **懂行 (Expert)**，让用户能够精准、高级地分享自己的音乐品味。
+需要 Node.js 18 或更高版本。
 
-## 核心功能
+```bash
+npm install
+cp .env.example .env.local
+```
 
-- **多感官引擎：** 针对不同场景生成文案（如温情的社交 post、专业的社区评价）。
-- **一键生成：** 基于极简输入或曲目信息，输出高保注文案。
-- **社交集成：** 预设文案格式，针对音乐平台和社交媒体传播进行优化。
-- **品味进阶：** 帮助用户建立一套用于描述音乐特性的感性词库。
+在 `.env.local` 中设置服务端变量：
 
-## 技术栈
+```env
+AGNES_API_KEY=你的密钥
+AGNES_MODEL=agnes-2.5-flash
+AGNES_BASE_URL=https://apihub.agnes-ai.com/v1
+```
 
-- **前端：** React + TypeScript
-- **构建工具：** Vite
-- **样式：** Tailwind CSS
-- **运行环境：** Node.js
+启动前端和本地 API：
 
-## 快速开始
+```bash
+npm run dev
+```
 
-### 环境依赖
+前端通过同源的 `/api/music/search` 与 `/api/agnes/chat` 访问后端。Vite 会把本地 `/api` 请求代理到端口 8787。
 
-- Node.js (v18 或更高版本)
-- npm 或 pnpm
+## 搜索行为
 
-### 安装步骤
+- 输入歌名或歌手名，直接搜索歌曲曲库并显示可选结果；搜索不依赖 AI。
+- 粘贴公开 Apple Music、Spotify、YouTube、网易云音乐或 QQ 音乐歌曲链接时，服务端先读取歌曲信息，再匹配曲目。
+- 曲库检索统一使用 iTunes Search API，不提供地区切换，也不在客户端硬编码地区代码。
+- 选择搜索结果后才调用 AI 分析；AI 问答保留当前曲目和分析上下文。
 
-1. 克隆仓库：
-   ```bash
-   git clone <repository-url>
-   cd praisemysong-(教你夸一首歌)
-   ```
+## Vercel 部署
 
-2. 安装依赖：
-   ```bash
-   npm install
-   ```
+在 Vercel 项目 **Settings → Environment Variables** 中添加：
 
-3. 配置环境变量：
-   将 `.env.example` 复制为 `.env.local` 并填入相应的 API Key。
+- `AGNES_API_KEY`：AgnesAI 密钥，仅服务端读取。
+- `AGNES_MODEL`：可选，默认 `agnes-2.5-flash`。
+- `AGNES_BASE_URL`：可选，默认 `https://apihub.agnes-ai.com/v1`。
 
-4. 启动开发服务器：
-   ```bash
-   npm run dev
-   ```
+将 `AGNES_API_KEY` 应用于 Production、Preview 环境，然后重新部署。不要将真实密钥写入源码、`.env.example` 或提交记录。
 
-## 使用说明
+## API
 
-1. 输入你想要夸赞的歌曲或艺人名称。
-2. 选择期望的文案风格（走心、上头、或懂行）。
-3. 复制生成的文案，用于朋友圈、歌单简介或音乐社区评论。
+- `GET /api/music/search?q=...`：检索曲目元数据。
+- `POST /api/agnes/chat`：服务端调用 AgnesAI，支持结构化逐歌分析与歌曲追问。
 
-## 部署指南
-
-### 方案 A：Vercel 全栈部署
-1. 在 Vercel 控制台中导入该仓库。
-2. 添加环境变量：`ZHIPU_API_KEY`。
-3. Vercel 会自动识别 `api/` 目录下的 Serverless Functions 并完成上线。
-
-### 方案 B：Render 后端 + Vercel 前端 (推荐)
-由于 Vercel 免费版有 10 秒超时限制，建议将后端部署到 **Render**：
-1. **Render 部署：** 创建新的 **Web Service**，启动命令设为 `npm start`，添加 `ZHIPU_API_KEY`。
-2. **前端关联：** 在 Vercel 项目设置中，添加 `VITE_BACKEND_API_BASE_URL` 指向你的 Render 地址，重新部署前端。
-
-## 开源协议
-
-本项目采用 MIT 协议开源 - 详情请参阅 [LICENSE](LICENSE) 文件。
+开发环境也可单独运行 `npm run dev:api`。
 

@@ -1,0 +1,11 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "api/agnes/chat.js": {
+      "maxDuration": 60
+    },
+    "api/music/search.js": {
+      "maxDuration": 20
+    }
+  }
+}
