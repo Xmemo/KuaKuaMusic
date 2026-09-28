@@ -34,14 +34,14 @@ export interface EvidenceClaim {
   text: string;
   sourceIds: string[];
   versionScope: string;
-  reasoningNote?: string | null;
+  reasoningNote: string | null;
 }
 
 export interface EvidenceSource {
   id: string;
   title: string;
-  author?: string | null;
-  publisher?: string | null;
+  author: string | null;
+  publisher: string | null;
   sourceType:
     | "musicbrainz"
     | "official"
@@ -52,21 +52,21 @@ export interface EvidenceSource {
     | "transcription"
     | "reference"
     | "other";
-  url?: string | null;
+  url: string | null;
   supports: string[];
   versionScope: string;
-  evidenceNote?: string | null;
+  evidenceNote: string | null;
 }
 
 export interface ResolvedSong {
   title: string;
   artist: string;
-  album?: string | null;
-  releaseYear?: string | null;
+  album: string | null;
+  releaseYear: string | null;
   versionScope: string;
-  musicBrainzRecordingId?: string | null;
-  musicBrainzWorkId?: string | null;
-  musicBrainzReleaseId?: string | null;
+  musicBrainzRecordingId: string | null;
+  musicBrainzWorkId: string | null;
+  musicBrainzReleaseId: string | null;
 }
 
 export interface AnalysisItem {
@@ -82,7 +82,7 @@ export interface AnalysisItem {
 
 export interface SongAnalysis {
   song: ResolvedSong;
-  userPerception?: string | null;
+  userPerception: string | null;
   overallVibe: {
     hook: string;
     emo: string;
@@ -105,6 +105,7 @@ export interface StudioSeed {
 export interface DeepDive {
   analysisItemId: string;
   title: string;
+  sources: EvidenceSource[];
   confirmed: Array<{
     text: string;
     sourceIds: string[];
@@ -113,7 +114,7 @@ export interface DeepDive {
   sourceSupport: Array<{
     sourceId: string;
     supports: string;
-    limitations?: string | null;
+    limitations: string | null;
   }>;
   interpretation: string;
   generalTheory: Array<{
