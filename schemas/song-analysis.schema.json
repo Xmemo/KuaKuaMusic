@@ -3,12 +3,21 @@
   "title": "MusicLearning2026 SongAnalysis",
   "type": "object",
   "additionalProperties": false,
-  "required": ["song", "overallVibe", "modules", "sources", "unknowns"],
+  "required": ["song", "userPerception", "overallVibe", "modules", "sources", "unknowns"],
   "properties": {
     "song": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["title", "artist", "versionScope"],
+      "required": [
+        "title",
+        "artist",
+        "album",
+        "releaseYear",
+        "versionScope",
+        "musicBrainzRecordingId",
+        "musicBrainzWorkId",
+        "musicBrainzReleaseId"
+      ],
       "properties": {
         "title": { "type": "string" },
         "artist": { "type": "string" },
@@ -75,7 +84,7 @@
     "claim": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "kind", "status", "text", "sourceIds", "versionScope"],
+      "required": ["id", "kind", "status", "text", "sourceIds", "versionScope", "reasoningNote"],
       "properties": {
         "id": { "type": "string" },
         "kind": {
@@ -98,7 +107,17 @@
     "source": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "title", "sourceType", "url", "supports", "versionScope"],
+      "required": [
+        "id",
+        "title",
+        "author",
+        "publisher",
+        "sourceType",
+        "url",
+        "supports",
+        "versionScope",
+        "evidenceNote"
+      ],
       "properties": {
         "id": { "type": "string" },
         "title": { "type": "string" },
