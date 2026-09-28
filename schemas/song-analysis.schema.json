@@ -1,0 +1,121 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MusicLearning2026 SongAnalysis",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["song", "overallVibe", "modules", "sources", "unknowns"],
+  "properties": {
+    "song": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["title", "artist", "versionScope"],
+      "properties": {
+        "title": { "type": "string" },
+        "artist": { "type": "string" },
+        "album": { "type": ["string", "null"] },
+        "releaseYear": { "type": ["string", "null"] },
+        "versionScope": { "type": "string" },
+        "musicBrainzRecordingId": { "type": ["string", "null"] },
+        "musicBrainzWorkId": { "type": ["string", "null"] },
+        "musicBrainzReleaseId": { "type": ["string", "null"] }
+      }
+    },
+    "userPerception": { "type": ["string", "null"] },
+    "overallVibe": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["hook", "emo", "hype", "pro"],
+      "properties": {
+        "hook": { "type": "string" },
+        "emo": { "type": "string" },
+        "hype": { "type": "string" },
+        "pro": { "type": "string" }
+      }
+    },
+    "modules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "category", "title", "summary", "claims", "unknowns", "expandable", "studioPotential"],
+        "properties": {
+          "id": { "type": "string" },
+          "category": {
+            "type": "string",
+            "enum": ["culture", "harmony", "rhythm", "timbre", "arrangement", "structure", "production"]
+          },
+          "title": { "type": "string" },
+          "summary": { "type": "string" },
+          "claims": {
+            "type": "array",
+            "items": { "$ref": "#/$defs/claim" }
+          },
+          "unknowns": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "expandable": { "type": "boolean" },
+          "studioPotential": {
+            "type": "string",
+            "enum": ["none", "rhythm", "harmony", "both"]
+          }
+        }
+      }
+    },
+    "sources": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/source" }
+    },
+    "unknowns": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "$defs": {
+    "claim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "status", "text", "sourceIds", "versionScope"],
+      "properties": {
+        "id": { "type": "string" },
+        "kind": {
+          "type": "string",
+          "enum": ["external_evidence", "user_perception", "machine_observation", "ai_interpretation", "general_theory", "unknown"]
+        },
+        "status": {
+          "type": "string",
+          "enum": ["supported", "interpreted", "general", "unknown"]
+        },
+        "text": { "type": "string" },
+        "sourceIds": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "versionScope": { "type": "string" },
+        "reasoningNote": { "type": ["string", "null"] }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title", "sourceType", "url", "supports", "versionScope"],
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "author": { "type": ["string", "null"] },
+        "publisher": { "type": ["string", "null"] },
+        "sourceType": {
+          "type": "string",
+          "enum": ["musicbrainz", "official", "interview", "credits", "analysis", "score", "transcription", "reference", "other"]
+        },
+        "url": { "type": ["string", "null"] },
+        "supports": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "versionScope": { "type": "string" },
+        "evidenceNote": { "type": ["string", "null"] }
+      }
+    }
+  }
+}
