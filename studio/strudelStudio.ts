@@ -23,13 +23,13 @@ export interface StudioRevision {
   id: string;
   code: string;
   label: string;
+  sourceType: StudioSourceType;
   createdAt: string;
 }
 
 export interface StudioSession {
   id: string;
   analysisItemId: string;
-  sourceType: StudioSourceType;
   sourceIds: string[];
   explanation: string;
   visualHints: VisualHint[];
@@ -53,13 +53,13 @@ export function createStudioSession(
     id: makeId("rev"),
     code: seed.code,
     label: "Initial " + seed.sourceType,
+    sourceType: seed.sourceType,
     createdAt: new Date().toISOString(),
   };
 
   return {
     id: makeId("studio"),
     analysisItemId,
-    sourceType: seed.sourceType,
     sourceIds: [...seed.sourceIds],
     explanation: seed.explanation,
     visualHints: [...seed.visualHints],
@@ -68,8 +68,16 @@ export function createStudioSession(
   };
 }
 
+export function currentStudioRevision(session: StudioSession): StudioRevision | null {
+  return session.revisions[session.revisionIndex] || null;
+}
+
 export function currentStudioCode(session: StudioSession): string {
-  return session.revisions[session.revisionIndex]?.code || "";
+  return currentStudioRevision(session)?.code || "";
+}
+
+export function currentStudioSourceType(session: StudioSession): StudioSourceType {
+  return currentStudioRevision(session)?.sourceType || "learning_reconstruction";
 }
 
 export function applyStudioCode(
@@ -85,12 +93,12 @@ export function applyStudioCode(
     id: makeId("rev"),
     code: nextCode,
     label,
+    sourceType: "user_version",
     createdAt: new Date().toISOString(),
   };
 
   return {
     ...session,
-    sourceType: "user_version",
     revisions: [...kept, nextRevision],
     revisionIndex: kept.length,
   };
@@ -113,7 +121,7 @@ export function resetStudioToSeed(session: StudioSession): StudioSession {
 export function studioAgentContext(session: StudioSession) {
   return {
     analysisItemId: session.analysisItemId,
-    sourceType: session.sourceType,
+    sourceType: currentStudioSourceType(session),
     sourceIds: session.sourceIds,
     explanation: session.explanation,
     visualHints: session.visualHints,
