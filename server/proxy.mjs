@@ -27,7 +27,7 @@ app.get("/health", async (_req, res) => {
 
 app.get("/api/agent/health", async (_req, res) => {
   const codex = await checkCodexAvailable();
-  res.status(codex.available ? 200 : 503).json({
+  res.status(200).json({
     ok: codex.available,
     codexAvailable: codex.available,
     codexVersion: codex.version,
