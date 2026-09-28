@@ -63,7 +63,9 @@ Default for AI-created examples that isolate a mechanism.
 
 ### user_version
 
-Applied after the user edits the seed.
+Applied to revisions created by user/AI edits.
+
+The source label belongs to each revision rather than the whole session. Undo/reset therefore restores the source label of the active revision instead of leaving the session permanently marked as `user_version`.
 
 ## Runtime adapter
 
