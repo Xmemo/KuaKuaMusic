@@ -102,6 +102,8 @@ Canonical role:
 
 The Agent produces schema-valid JSON and follows the project evidence rules in AGENTS.md.
 
+Schema validity is not treated as sufficient. Server-side integrity validation rejects dangling source IDs, unsupported V1 machine observations, inconsistent Studio eligibility, and transcription labels without an actual score/transcription source.
+
 It is intentionally one Agent, not "GPT writer + Codex checker".
 
 ### Evidence package
@@ -300,6 +302,8 @@ re-read mapped sources
    ↓
 targeted second-pass search
    ↓
+persist newly discovered / reused sources
+   ↓
 confirmed facts
    ↓
 source-specific support
@@ -337,16 +341,24 @@ The old concept of a bespoke MIDI editing window is removed.
 Conceptual model:
 
 ```ts
+type StudioRevision = {
+  id: string
+  code: string
+  sourceType: "source_transcription" | "learning_reconstruction" | "user_version"
+  createdAt: string
+}
+
 type StudioSession = {
   id: string
   analysisItemId: string
-  sourceType: "source_transcription" | "learning_reconstruction" | "user_version"
   sourceIds: string[]
-  code: string
-  tempo?: number
   visualHints: ("pianoroll" | "punchcard" | "spiral" | "scope" | "spectrum" | "pitchwheel")[]
   revisions: StudioRevision[]
+  revisionIndex: number
 }
+
+// Current source type is derived from the active revision.
+// Undo/reset therefore restores the original source label.
 ```
 
 ### Adapter contract
@@ -493,7 +505,9 @@ The new path should be introduced side-by-side, then the UI can migrate one stag
 
 - prompt serialization;
 - claim/evidence schema parsing;
-- Studio revision reducer;
+- runtime evidence-integrity validation;
+- second-pass source persistence;
+- Studio revision reducer and source-label restoration;
 - invalid/oversized Agent responses;
 - timeout behavior.
 
