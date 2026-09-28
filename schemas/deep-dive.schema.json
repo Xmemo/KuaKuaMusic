@@ -6,6 +6,7 @@
   "required": [
     "analysisItemId",
     "title",
+    "sources",
     "confirmed",
     "sourceSupport",
     "interpretation",
@@ -18,6 +19,10 @@
   "properties": {
     "analysisItemId": { "type": "string" },
     "title": { "type": "string" },
+    "sources": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/source" }
+    },
     "confirmed": {
       "type": "array",
       "items": { "$ref": "#/$defs/claim" }
@@ -115,6 +120,38 @@
           "items": { "type": "string" }
         },
         "versionScope": { "type": "string" }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "title",
+        "author",
+        "publisher",
+        "sourceType",
+        "url",
+        "supports",
+        "versionScope",
+        "evidenceNote"
+      ],
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "author": { "type": ["string", "null"] },
+        "publisher": { "type": ["string", "null"] },
+        "sourceType": {
+          "type": "string",
+          "enum": ["musicbrainz", "official", "interview", "credits", "analysis", "score", "transcription", "reference", "other"]
+        },
+        "url": { "type": ["string", "null"] },
+        "supports": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "versionScope": { "type": "string" },
+        "evidenceNote": { "type": ["string", "null"] }
       }
     }
   }
