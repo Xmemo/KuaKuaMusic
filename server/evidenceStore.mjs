@@ -39,6 +39,17 @@ async function writeJson(target, value) {
   await fs.writeFile(target, JSON.stringify(value, null, 2) + "\n", "utf8");
 }
 
+function mergeSources(...sourceLists) {
+  const merged = new Map();
+  for (const sources of sourceLists) {
+    if (!Array.isArray(sources)) continue;
+    for (const source of sources) {
+      if (source?.id) merged.set(source.id, source);
+    }
+  }
+  return [...merged.values()];
+}
+
 export async function persistAnalysis(analysis) {
   if (process.env.MUSIC_LEARNING_PERSIST === "0") return null;
   const key = stableSongKey(analysis);
@@ -57,11 +68,16 @@ export async function persistAnalysis(analysis) {
 export async function persistDeepDive(analysis, deepDive) {
   if (process.env.MUSIC_LEARNING_PERSIST === "0") return null;
   const key = stableSongKey(analysis);
+  const root = path.join(evidenceRoot(), key);
   const itemId = safeSegment(deepDive?.analysisItemId || "deep-dive");
-  const target = path.join(evidenceRoot(), key, "deep-dives", itemId + ".json");
+  const target = path.join(root, "deep-dives", itemId + ".json");
+
+  const sources = mergeSources(analysis?.sources, deepDive?.sources);
+  await writeJson(path.join(root, "sources.json"), sources);
   await writeJson(target, {
     ...deepDive,
     savedAt: new Date().toISOString(),
   });
+
   return { key, target };
 }
