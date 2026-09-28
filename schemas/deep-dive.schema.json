@@ -27,7 +27,7 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["sourceId", "supports"],
+        "required": ["sourceId", "supports", "limitations"],
         "properties": {
           "sourceId": { "type": "string" },
           "supports": { "type": "string" },
