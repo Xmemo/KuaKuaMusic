@@ -1,0 +1,121 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MusicLearning2026 DeepDive",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "analysisItemId",
+    "title",
+    "confirmed",
+    "sourceSupport",
+    "interpretation",
+    "generalTheory",
+    "conflicts",
+    "unknowns",
+    "listeningCues",
+    "studio"
+  ],
+  "properties": {
+    "analysisItemId": { "type": "string" },
+    "title": { "type": "string" },
+    "confirmed": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/claim" }
+    },
+    "sourceSupport": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["sourceId", "supports"],
+        "properties": {
+          "sourceId": { "type": "string" },
+          "supports": { "type": "string" },
+          "limitations": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "interpretation": { "type": "string" },
+    "generalTheory": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["concept", "explanation"],
+        "properties": {
+          "concept": { "type": "string" },
+          "explanation": { "type": "string" }
+        }
+      }
+    },
+    "conflicts": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "unknowns": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "listeningCues": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "studio": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["eligible", "potential", "reason", "seed"],
+      "properties": {
+        "eligible": { "type": "boolean" },
+        "potential": {
+          "type": "string",
+          "enum": ["none", "rhythm", "harmony", "both"]
+        },
+        "reason": { "type": "string" },
+        "seed": {
+          "anyOf": [
+            { "type": "null" },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["sourceType", "sourceIds", "code", "explanation", "visualHints"],
+              "properties": {
+                "sourceType": {
+                  "type": "string",
+                  "enum": ["source_transcription", "learning_reconstruction"]
+                },
+                "sourceIds": {
+                  "type": "array",
+                  "items": { "type": "string" }
+                },
+                "code": { "type": "string" },
+                "explanation": { "type": "string" },
+                "visualHints": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": ["pianoroll", "punchcard", "spiral", "scope", "spectrum", "pitchwheel"]
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  "$defs": {
+    "claim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["text", "sourceIds", "versionScope"],
+      "properties": {
+        "text": { "type": "string" },
+        "sourceIds": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "versionScope": { "type": "string" }
+      }
+    }
+  }
+}
