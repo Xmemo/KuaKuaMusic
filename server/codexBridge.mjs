@@ -29,6 +29,42 @@ export function getCodexBridgeConfig() {
   };
 }
 
+export async function checkCodexAvailable() {
+  const config = getCodexBridgeConfig();
+
+  return new Promise((resolve) => {
+    const child = spawn(config.bin, ["--version"], {
+      cwd: config.cwd,
+      env: process.env,
+      stdio: ["ignore", "pipe", "pipe"],
+      shell: false,
+    });
+
+    let output = "";
+    let settled = false;
+
+    const finish = (available, version = null) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve({ available, version });
+    };
+
+    const timer = setTimeout(() => {
+      child.kill("SIGTERM");
+      finish(false, null);
+    }, 5000);
+
+    child.on("error", () => finish(false, null));
+    child.stdout.on("data", (chunk) => {
+      output += chunk.toString("utf8");
+    });
+    child.on("close", (code) => {
+      finish(code === 0, code === 0 ? output.trim() || null : null);
+    });
+  });
+}
+
 export async function runCodexStructured({ prompt, outputSchema }) {
   if (typeof prompt !== "string" || !prompt.trim()) {
     throw new Error("Codex prompt is empty.");
@@ -66,22 +102,23 @@ export async function runCodexStructured({ prompt, outputSchema }) {
     let stderr = "";
     let settled = false;
     let killedForSize = false;
+    let timer;
 
     const finishReject = (error) => {
       if (settled) return;
       settled = true;
-      clearTimeout(timer);
+      if (timer) clearTimeout(timer);
       reject(error);
     };
 
     const finishResolve = (value) => {
       if (settled) return;
       settled = true;
-      clearTimeout(timer);
+      if (timer) clearTimeout(timer);
       resolve(value);
     };
 
-    const timer = setTimeout(() => {
+    timer = setTimeout(() => {
       child.kill("SIGTERM");
       finishReject(new Error("Codex analysis timed out after " + config.timeoutMs + " ms."));
     }, config.timeoutMs);
