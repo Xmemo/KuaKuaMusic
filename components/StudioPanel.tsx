@@ -316,7 +316,7 @@ export default function StudioPanel({
         <p className="muted">请先预览并应用当前草稿，再保存或请求建议。</p>
       ) : null}
       <div className="runtime-boundary">
-        <p>当前版本支持编辑、比较和保存。内置播放待 Strudel 许可决定后接入。</p>
+        <p>当前版本支持编辑、比较和保存。项目已采用 AGPL 许可，内置播放仍待接入。</p>
         <button
           onClick={() =>
             download("music-learning-pattern.js", strudelExport(current))

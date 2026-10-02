@@ -94,6 +94,31 @@ test("rejects malformed shape, dangling evidence, metadata used for rhythm, and 
     /服务端读取/,
   );
 });
+test("JSON evidence ignores formatting outside strings, preserves the actual passage, and rejects changed values or field order", async () => {
+  const json = { title: "Blue Train", version: '"live" mix', artist: "Example" };
+  const document = JSON.stringify(json);
+  const field = (key, value, separator = ": ") => JSON.stringify(key) + separator + JSON.stringify(value);
+  const excerpts = [
+    field("title", json.title),
+    field("version", json.version),
+    field("title", "BlueTrain"),
+    field("artist", json.artist) + ", " + field("title", json.title),
+    field("title", "Invented title"),
+  ].map(text => ({ text, locator: "JSON field", topics: ["identity"] }));
+  const proposal = { title: "Synthetic JSON", author: null, publisher: null,
+    sourceType: "musicbrainz", url: source.url, versionScope: scope, excerpts };
+  const result = await registerSources([proposal], {
+    reader: async url => ({ url, title: null, contentType: "application/json", text: document }),
+  });
+  assert.deepEqual(result.sources[0].excerpts.map(e => e.text), [
+    field("title", json.title, ":"), field("version", json.version, ":"),
+  ]);
+  assert.ok(result.sources[0].excerpts.every(e => document.includes(e.text)));
+  const html = await registerSources([proposal], {
+    reader: async url => ({ url, title: null, contentType: "text/html", text: document }),
+  });
+  assert.equal(html.sources.length, 0);
+});
 test("a prose summary cannot introduce facts outside its claims; unresolved recordings cannot have confirmed technical claims", () => {
   const a = analysisFixture();
   a.modules[0].summary += " Tempo is 99 BPM.";

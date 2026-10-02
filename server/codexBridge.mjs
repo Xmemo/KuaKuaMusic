@@ -1,9 +1,10 @@
 import { spawn } from "node:child_process";
 import { StringDecoder } from "node:string_decoder";
+import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { AppError } from "./errors.mjs";
-import { researchConfigArgs } from "./researchConfig.mjs";
+import { DEFAULT_REASONING_EFFORT, DEFAULT_RESEARCH_MODEL, researchConfigArgs } from "./researchConfig.mjs";
 const REPO_ROOT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "..",
@@ -14,8 +15,10 @@ export const schemaPath = (relative) => path.resolve(REPO_ROOT, relative);
 export function getCodexBridgeConfig() {
   return {
     bin: process.env.CODEX_BIN || "codex",
-    model: process.env.CODEX_MODEL || "",
+    model: process.env.CODEX_MODEL?.trim() || DEFAULT_RESEARCH_MODEL,
+    reasoningEffort: process.env.CODEX_REASONING_EFFORT?.trim() || DEFAULT_REASONING_EFFORT,
     timeoutMs: positive("CODEX_TIMEOUT_MS", 180000),
+    researchTimeoutMs: positive("CODEX_RESEARCH_TIMEOUT_MS", 360000),
     maxStdoutBytes: positive("CODEX_MAX_STDOUT_BYTES", 2 * 1024 * 1024),
     maxStderrBytes: positive("CODEX_MAX_STDERR_BYTES", 512 * 1024),
     cwd: REPO_ROOT,
@@ -144,6 +147,30 @@ export async function checkCodexAvailable() {
     return { available: false, version: null };
   }
 }
+export function classifyCodexFailure(stderr) {
+  // Only inspect the terminal error, not arbitrary text returned by research tools.
+  const terminal = String(stderr).split(/\nERROR:/).at(-1);
+  if (!/(?:^ERROR:|\nERROR:)/.test(String(stderr))) return "AGENT_FAILED";
+  if (/usage limit|rate limit|quota|too many requests|\b429\b/i.test(terminal))
+    return "AGENT_RATE_LIMIT";
+  if (/unauthorized|authentication|token.{0,40}expired|\b401\b/i.test(terminal))
+    return "AGENT_AUTH";
+  if (/model.{0,80}(not supported|not found|does not exist|unavailable)/i.test(terminal))
+    return "AGENT_MODEL";
+  if (/stream disconnected|error sending request|connection reset|connection refused|network|timed out|failed to connect/i.test(terminal))
+    return "AGENT_NETWORK";
+  if (/required MCP|MCP.{0,80}(failed|unavailable)/i.test(terminal))
+    return "AGENT_MCP";
+  return "AGENT_FAILED";
+}
+const failureMessages = {
+  AGENT_RATE_LIMIT: "Codex 的使用额度或请求频率已达上限，请在额度恢复后重试。",
+  AGENT_AUTH: "Codex 登录已失效，请在本机重新登录后重试。",
+  AGENT_MODEL: "当前 Codex 模型不可用，请检查 CODEX_MODEL 设置。",
+  AGENT_NETWORK: "连接 Codex 模型服务时中断，请检查本机网络或代理后重试。",
+  AGENT_MCP: "MusicBrainz 工具连接失败，请稍后重试。",
+  AGENT_FAILED: "Codex 未完成本次研究。请重试；若再次失败，可用错误编号定位服务日志。",
+};
 export async function runCodexStructured({ prompt, outputSchema, signal }) {
   if (!prompt?.trim() || !outputSchema?.trim())
     throw new AppError("Agent 请求缺少指令或结构契约。");
@@ -155,6 +182,7 @@ export async function runCodexStructured({ prompt, outputSchema, signal }) {
     "--sandbox",
     "read-only",
     ...researchConfigArgs(),
+    "-c", "model_reasoning_effort=" + JSON.stringify(config.reasoningEffort),
     "--output-schema",
     outputSchema,
   ];
@@ -163,15 +191,20 @@ export async function runCodexStructured({ prompt, outputSchema, signal }) {
   const result = await runCodexCommand(args, {
     prompt,
     signal,
-    timeoutMs: config.timeoutMs,
+    timeoutMs: path.basename(outputSchema) === "research-plan.schema.json"
+      ? config.researchTimeoutMs : config.timeoutMs,
     maxBytes: config.maxStdoutBytes,
   });
-  if (result.code !== 0)
+  if (result.code !== 0) {
+    const code = classifyCodexFailure(result.stderr);
+    const id = randomUUID();
+    console.warn(JSON.stringify({ event: "research_failed", id, stage: path.basename(outputSchema), code, exitCode: result.code, model: config.model }));
     throw new AppError(
-      "Codex 研究失败，请检查登录、网络与 MCP 服务。",
-      "AGENT_FAILED",
+      failureMessages[code] + "（错误编号：" + id + "）",
+      code,
       502,
     );
+  }
   try {
     return JSON.parse(result.stdout.trim());
   } catch {

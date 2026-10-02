@@ -28,8 +28,7 @@ const categories = {
 };
 const modes = { emo: "走心", hype: "上头", pro: "懂行" };
 function MusicLearningApp() {
-  const [query, setQuery] = useState(""),
-    [perception, setPerception] = useState("");
+  const [query, setQuery] = useState("");
   const [matches, setMatches] = useState<SongMetadata[]>([]),
     [selected, setSelected] = useState<SongMetadata | null>(null);
   const [visibleMatches, setVisibleMatches] = useState(24);
@@ -91,12 +90,16 @@ function MusicLearningApp() {
     controller.current = new AbortController();
     const currentTicket = ++ticket.current;
     setSelected(song);
+    setStored(null);
+    setSavedPackage(null);
+    setDive(null);
+    setQuestion("");
     setBusy("正在读取资料并整理解释，可能需要几分钟");
     setError("");
     try {
       const value = await analyzeSongWithEvidence(
         song,
-        perception,
+        "",
         controller.current.signal,
       );
       if (currentTicket !== ticket.current) return;
@@ -157,7 +160,6 @@ function MusicLearningApp() {
         title: pkg.analysis.song.title,
         artist: pkg.analysis.song.artist,
       });
-      setPerception(pkg.analysis.userPerception || "");
       setDive(pkg.deepDives.at(-1) || null);
       setMatches([]);
     } catch (e) {
@@ -210,6 +212,12 @@ function MusicLearningApp() {
             研究服务尚未就绪。请确认 Codex 已登录，并能连接 MusicBrainz 服务。
           </p>
         ) : null}
+        {health?.model ? (
+          <p className="muted">
+            研究模型：Codex · {health.model} ·{" "}
+            {health.reasoningEffort === "xhigh" ? "极高" : health.reasoningEffort}
+          </p>
+        ) : null}
         <form className="panel input-panel" onSubmit={search}>
           <label htmlFor="song-query">歌曲链接、歌名或艺人</label>
           <div className="input-row">
@@ -223,15 +231,6 @@ function MusicLearningApp() {
               搜索歌曲
             </button>
           </div>
-          <label htmlFor="perception">你想理解哪个细节？（可选）</label>
-          <textarea
-            id="perception"
-            rows={2}
-            maxLength={1200}
-            value={perception}
-            onChange={(event) => setPerception(event.target.value)}
-            placeholder="例如：副歌为什么突然感觉开阔？"
-          />
         </form>
         {busy ? (
           <div className="busy" role="status">
@@ -493,13 +492,33 @@ function MusicLearningApp() {
             ))}
           </details>
         ) : null}
-        {selected && !stored && !busy ? (
+        {selected && !busy ? (
           <button onClick={() => analyze(selected)}>
             重新研究 {selected.title}
           </button>
         ) : null}
       </main>
-      <footer>每个判断都应能追溯；每个实验都应能说明它改变了什么。</footer>
+      <footer>
+        <p>每个判断都应能追溯；每个实验都应能说明它改变了什么。</p>
+        <p>
+          <a href="/LICENSE" target="_blank" rel="noreferrer">
+            AGPL-3.0-or-later
+          </a>
+          {" · "}
+          <a
+            href={"https://github.com/Xmemo/KuaKuaMusic/tree/" +
+              (import.meta.env.VITE_SOURCE_REVISION || "arch/music-learning-2026-v1-2026-09-28")}
+            target="_blank"
+            rel="noreferrer"
+          >
+            对应源码
+          </a>
+          {" · "}
+          <a href="/THIRD_PARTY_NOTICES.md" target="_blank" rel="noreferrer">
+            第三方声明
+          </a>
+        </p>
+      </footer>
     </div>
   );
 }

@@ -5,7 +5,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { createApp } from "../server/proxy.mjs";
-import { runCodexCommand, runCodexStructured } from "../server/codexBridge.mjs";
+import { classifyCodexFailure, getCodexBridgeConfig, runCodexCommand, runCodexStructured } from "../server/codexBridge.mjs";
 import { probeMusicBrainz, getAgentHealth } from "../server/agentHealth.mjs";
 const temp = await fs.mkdtemp(path.join(os.tmpdir(), "music-local-test-"));
 after(() => fs.rm(temp, { recursive: true, force: true }));
@@ -213,6 +213,8 @@ test("structured research receives MusicBrainz explicitly in an untrusted checko
     assert.ok(args.includes('mcp_servers.musicbrainz.url="https://musicbrainz.caseyjhand.com/mcp"'));
     assert.ok(args.includes('web_search="live"'));
     assert.equal(args[args.indexOf("--sandbox") + 1], "read-only");
+    assert.equal(args[args.indexOf("--model") + 1], getCodexBridgeConfig().model);
+    assert.ok(args.includes('model_reasoning_effort="xhigh"'));
     assert.ok(!args.some((arg) => arg.includes("trust_level")));
   } finally { delete process.env.CODEX_BIN; }
 });
@@ -239,7 +241,19 @@ test("health uses supported exec diagnostics and requires a reachable MCP", asyn
     const healthy = await getAgentHealth({ refresh: true });
     assert.equal(healthy.ok, true);
     assert.equal(healthy.projectConfiguration, "explicit");
+    assert.equal(healthy.model, getCodexBridgeConfig().model);
+    assert.equal(healthy.reasoningEffort, "xhigh");
+    assert.equal(healthy.strudelRuntime, "not_installed");
     globalThis.fetch = async () => { throw new Error("offline"); };
     assert.equal((await getAgentHealth({ refresh: true })).ok, false);
   } finally { globalThis.fetch = previousFetch; delete process.env.CODEX_BIN; }
+});
+
+test("CLI failures distinguish terminal errors without treating source text as provider diagnostics", () => {
+  assert.equal(classifyCodexFailure('source page: 429 quota\nERROR: stream disconnected before completion: error sending request'), 'AGENT_NETWORK');
+  assert.equal(classifyCodexFailure('ERROR: You have hit your usage limit'), 'AGENT_RATE_LIMIT');
+  assert.equal(classifyCodexFailure('ERROR: 401 Unauthorized'), 'AGENT_AUTH');
+  assert.equal(classifyCodexFailure('ERROR: model xyz is not supported'), 'AGENT_MODEL');
+  assert.equal(classifyCodexFailure('source page: 401 Unauthorized'), 'AGENT_FAILED');
+  assert.equal(classifyCodexFailure('PRIVATE_PROVIDER_DIAGNOSTIC'), 'AGENT_FAILED');
 });

@@ -18,6 +18,7 @@ const built = await build({
   define: {
     "import.meta.env.VITE_ENABLE_LEGACY_UI": '"0"',
     "import.meta.env.VITE_BACKEND_API_BASE_URL": '""',
+    "import.meta.env.VITE_SOURCE_REVISION": '"fixture-revision"',
     "process.env.NODE_ENV": '"production"',
   },
 });
@@ -28,7 +29,7 @@ async function until(check) {
   }
   throw new Error("UI state did not settle");
 }
-function harness({ empty = false, songs = [{ title: "测试歌曲", artist: "测试艺人" }] } = {}) {
+function harness({ empty = false, failAnalysisNumber = 0, songs = [{ title: "测试歌曲", artist: "测试艺人" }] } = {}) {
   const errors = [],
     console = new VirtualConsole();
   console.on("jsdomError", (e) => errors.push(e.message));
@@ -44,6 +45,7 @@ function harness({ empty = false, songs = [{ title: "测试歌曲", artist: "测
   const { window } = dom;
   let pkg = null,
     finishProposal = null;
+  const analysisRequests = [];
   window.AbortController = globalThis.AbortController;
   window.crypto.randomUUID = crypto.randomUUID;
   window.fetch = async (raw, options = {}) => {
@@ -67,6 +69,9 @@ function harness({ empty = false, songs = [{ title: "测试歌曲", artist: "测
           ]
         : [];
     else if (url.pathname === "/api/agent/analyze") {
+      analysisRequests.push(data);
+      if (analysisRequests.length === failAnalysisNumber)
+        return { ok: false, status: 502, json: async () => ({ error: "合成研究失败" }) };
       const analysis = analysisFixture();
       analysis.userPerception = data.userPerception || null;
       if (empty) {
@@ -139,6 +144,7 @@ function harness({ empty = false, songs = [{ title: "测试歌曲", artist: "测
   };
   mount();
   return {
+    analysisRequests,
     dom,
     document,
     button,
@@ -176,6 +182,28 @@ test("DOM search exposes all returned candidates beyond the first page", async (
     await until(() => ui.document.querySelectorAll(".song-choice").length === 50);
     assert.equal(ui.button("显示更多歌曲"), undefined);
     assert.match(ui.document.body.textContent, /找到 50 个候选/);
+    assert.deepEqual(ui.errors, []);
+  } finally { ui.dom.window.close(); }
+});
+test("a new research after restoring history sends no stale question and a failure does not display the previous analysis", async () => {
+  const ui = harness({ failAnalysisNumber: 2 });
+  try {
+    await selectSong(ui);
+    ui.pkg().analysis.userPerception = "上一首歌的历史问题";
+    ui.mount();
+    await until(() => ui.document.querySelector(".history-item"));
+    ui.document.querySelector(".history-item").click();
+    await until(() => ui.document.querySelector(".overview"));
+    ui.fill("song-query", "下一首歌曲");
+    await until(() => !ui.button("搜索歌曲").disabled);
+    ui.button("搜索歌曲").click();
+    await until(() => ui.document.querySelector(".song-choice"));
+    ui.document.querySelector(".song-choice").click();
+    await until(() => ui.document.querySelector('[role="alert"]'));
+    assert.equal(ui.analysisRequests[1].userPerception, "");
+    assert.equal(ui.document.querySelector(".overview"), null);
+    assert.match(ui.document.querySelector('[role="alert"]').textContent, /合成研究失败/);
+    assert.ok(ui.button("重新研究 测试歌曲"));
     assert.deepEqual(ui.errors, []);
   } finally { ui.dom.window.close(); }
 });

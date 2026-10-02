@@ -18,7 +18,7 @@ The previous bespoke MIDI-window concept is retired. MIDI may later be an export
 
 ## Interaction model
 
-Select a Deep Dive → open its A/B experiment → propose a change → preview code and playback settings → apply → save or undo/redo. Built-in play and native visual feedback remain pending the explicit license decision. Export the current revision to audition in the official Strudel editor.
+Select a Deep Dive → open its A/B experiment → propose a change → preview code and playback settings → apply → save or undo/redo. The project has adopted AGPL-3.0-or-later; built-in play and native visual feedback still require runtime adapter implementation. Export the current revision to audition in the official Strudel editor.
 
 
 The Agent should read the current pattern before proposing changes.
@@ -54,7 +54,7 @@ The source label belongs to each revision rather than the whole session. Undo/re
 
 `studio/strudelStudio.ts` defines the adapter contract and app-owned revision model.
 
-The actual `@strudel/*` runtime is intentionally not bundled in this architecture PR because current Strudel packages are AGPL-licensed. Resolve the repository/distribution license first, then implement the adapter against the chosen Strudel packages.
+The actual `@strudel/*` runtime is not yet bundled. The repository/distribution license is now recorded in [the license decision](../docs/STRUDEL_LICENSE_DECISION.md); a later runtime implementation must preserve the selected upstream packages' notices and link corresponding source.
 
 This licensing gate does not change the product decision: Studio is Strudel-first.
 

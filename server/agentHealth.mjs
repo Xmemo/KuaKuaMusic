@@ -1,4 +1,4 @@
-import { checkCodexAvailable, runCodexCommand } from "./codexBridge.mjs";
+import { checkCodexAvailable, getCodexBridgeConfig, runCodexCommand } from "./codexBridge.mjs";
 import { MUSICBRAINZ_MCP_URL } from "./researchConfig.mjs";
 let cached = null,
   pending = null;
@@ -80,11 +80,13 @@ export async function getAgentHealth({ refresh = false } = {}) {
       ok: cli.available && login?.code === 0 && configured && musicBrainz === "ready",
       codexAvailable: cli.available,
       codexVersion: cli.version,
+      model: getCodexBridgeConfig().model,
+      reasoningEffort: getCodexBridgeConfig().reasoningEffort,
       authentication: login?.code === 0 ? "ready" : "unavailable",
       projectConfiguration: configured ? "explicit" : "unverified",
       musicBrainz,
       webResearch: "unverified",
-      strudelRuntime: "license_pending",
+      strudelRuntime: "not_installed",
     };
     cached = { at: Date.now(), value };
     return value;

@@ -10,6 +10,22 @@ export const normalizeEvidenceText = (value) =>
   String(value).normalize("NFKC").replace(/\s+/gu, " ").trim();
 const digest = (value) =>
   crypto.createHash("sha256").update(value).digest("hex");
+function compactJsonText(value) {
+  let text = "", quoted = false, escaped = false;
+  const offsets = [];
+  for (let index = 0; index < value.length; index++) {
+    const char = value[index];
+    if (!quoted && /\s/u.test(char)) continue;
+    text += char;
+    offsets.push(index);
+    if (quoted) {
+      if (escaped) escaped = false;
+      else if (char === "\\") escaped = true;
+      else if (char === '"') quoted = false;
+    } else if (char === '"') quoted = true;
+  }
+  return { text, offsets };
+}
 function sourceUrl(value) {
   const url = new URL(value);
   if (
@@ -134,12 +150,14 @@ export async function readPublicSource(value, { signal, redirects = 0 } = {}) {
       url: result.url,
       text: normalizeEvidenceText($("body").text()),
       title: $("title").text().trim(),
+      contentType: result.type,
     };
   }
   return {
     url: result.url,
     text: normalizeEvidenceText(result.body),
     title: null,
+    contentType: result.type,
   };
 }
 export async function registerSources(
@@ -161,6 +179,13 @@ export async function registerSources(
           const doc = await reader(proposal.url, { signal });
           const normalized = normalizeEvidenceText(doc.text),
             documentHash = digest(normalized);
+          let jsonDocument = null;
+          if (/application\/(?:[\w.+-]+\+)?json\b/i.test(doc.contentType || "")) {
+            try {
+              JSON.parse(normalized);
+              jsonDocument = compactJsonText(normalized);
+            } catch {}
+          }
           const id =
             "src-" +
             digest(
@@ -168,7 +193,15 @@ export async function registerSources(
             ).slice(0, 24);
           const excerpts = [];
           for (const candidate of proposal.excerpts.slice(0, 6)) {
-            const text = normalizeEvidenceText(candidate.text);
+            let text = normalizeEvidenceText(candidate.text);
+            if (!normalized.includes(text) && jsonDocument) {
+              const compact = compactJsonText(text).text;
+              const start = compact.length ? jsonDocument.text.indexOf(compact) : -1;
+              if (start >= 0) {
+                text = normalized.slice(jsonDocument.offsets[start],
+                  jsonDocument.offsets[start + compact.length - 1] + 1);
+              }
+            }
             if (
               text.length < 12 ||
               text.length > 600 ||

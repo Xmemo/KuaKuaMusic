@@ -44,8 +44,10 @@ export function createMusicLearningAgent({
       [
         "Resolve the exact recording/work/version using MusicBrainz MCP when available. Never silently select among ambiguous versions.",
         "For MusicBrainz evidence, return its public /ws/2/<entity>/<id>?fmt=json API URLs (with inc parameters if needed), not entity HTML pages that may serve a browser-verification screen. Quote short contiguous JSON field fragments from the actual API response.",
+        "Quote each JSON field separately: do not combine fields whose adjacency/order was not observed in the public API document. MCP-rendered object key order may differ from the original response.",
         "This phase collects sources; the server assigns evidenceIds afterward. Missing evidenceIds here are expected, never report them as an unknown. Unknowns concern music, version scope and source availability only; omit internal workflow commentary.",
         "Search and READ song-specific sources. Return at most 8 public HTML/JSON/text source URLs with up to 6 short verbatim excerpts each (12-600 characters).",
+        "Keep research bounded: at most 3 web search queries and 5 source-page reads. Reuse returned identity metadata instead of repeatedly searching editions. If this budget does not resolve identity or provide technical evidence, return unresolved/unknown with the useful sources already read.",
         "PDF, paywall, search snippets and inaccessible pages cannot be used by this reader. Find an accessible primary alternative or leave unknown.",
         "Each excerpt has a topic and locator (heading, paragraph or JSON path). MusicBrainz evidence is identity-only.",
         "versionScope must be identical across a source and any intended recording-specific claim. Use general for general theory.",
