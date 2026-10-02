@@ -18,7 +18,7 @@ The previous bespoke MIDI-window concept is retired. MIDI may later be an export
 
 ## Interaction model
 
-Select a Deep Dive → open its A/B experiment → propose a change → preview code and playback settings → apply → save or undo/redo. The project has adopted AGPL-3.0-or-later; built-in play and native visual feedback still require runtime adapter implementation. Export the current revision to audition in the official Strudel editor.
+Select a Deep Dive → open its A/B experiment → propose a change → preview code and playback settings → apply → save or undo/redo. Built-in playback supports the current draft and A/B audition at the same tempo and sound bank, stop and volume control. Native Strudel visuals render in the Studio canvas. Editing does not change the playing snapshot until Play is clicked again. Playback never applies or saves a revision automatically.
 
 
 The Agent should read the current pattern before proposing changes.
@@ -54,7 +54,9 @@ The source label belongs to each revision rather than the whole session. Undo/re
 
 `studio/strudelStudio.ts` defines the adapter contract and app-owned revision model.
 
-The actual `@strudel/*` runtime is not yet bundled. The repository/distribution license is now recorded in [the license decision](../docs/STRUDEL_LICENSE_DECISION.md); a later runtime implementation must preserve the selected upstream packages' notices and link corresponding source.
+`studio/strudelRuntime.ts` implements the adapter with pinned core/mini/tonal/transpiler/draw 1.2.6 and webaudio 1.3.0. New seeds record `kua-synth-v1` and `core-1.2.6/webaudio-1.3.0`; historical `default`/`unbound` seeds resolve to these versions without rewriting their saved evidence or revisions. The app-authored deterministic percussion bank supplies bd/sd/hh/oh/cp locally; standard synthesizers also work. No external sample download is required. The license decision, UI copyright, locked source tarball links and complete upstream notices are shipped with the app.
+
+`runtimePolicy.mjs` parses an allowlisted musical AST before evaluation. It accepts musical calls, constants and bounded callbacks; browser/network access, constructors, computed members, imports and arbitrary JavaScript are rejected. Runtime checks tempo, bank/version, event density, syntax and sound availability. Stop disconnects old voices/effect tails and cancels drawing. Cancellation during loading and unmount invalidate pending playback; unmount closes the AudioContext. Full JavaScript programs/external banks can still be exported to the official editor. Audio rendering/recording export is not implemented.
 
 This licensing gate does not change the product decision: Studio is Strudel-first.
 

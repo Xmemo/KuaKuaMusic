@@ -1,13 +1,25 @@
 # 第三方软件声明
 
-生成日期：2026-10-02。以下清单对应当前 package-lock.json，包含可选平台包。各依赖保留其原有版权和许可，不被项目 AGPL 声明重新许可。安装包中的 LICENSE、NOTICE 与版权声明是完整条款依据，发行构建应一并保留相应声明。
+清单由 package-lock.json 生成。各依赖保留原有版权和许可。歌曲资料、录音、研究引用不因此取得再分发许可。
 
-Strudel runtime 当前未安装、未分发。安装时须更新本清单，收录所锁定版本的完整上游声明，并在界面显示上游版权与对应源码入口。歌曲资料、录音、研究引用和用户实验不因此取得第三方再分发许可。
+Strudel 已按固定版本安装。应用采用 AGPL-3.0-or-later，页面提供运行版本对应的项目源码与许可入口。完整已提供的依赖许可、源码版权声明见 [BUNDLED_LICENSES.txt](/BUNDLED_LICENSES.txt)。默认打击乐由本项目合成，不使用外部采样库。
+
+## Strudel 对应源码
+
+- @strudel/core 1.2.6: [上游源码与发行包](https://registry.npmjs.org/@strudel/core/-/core-1.2.6.tgz)（包含源码、README 和许可）；[Strudel 源码仓库](https://codeberg.org/uzu/strudel)。
+- @strudel/draw 1.2.6: [上游源码与发行包](https://registry.npmjs.org/@strudel/draw/-/draw-1.2.6.tgz)（包含源码、README 和许可）；[Strudel 源码仓库](https://codeberg.org/uzu/strudel)。
+- @strudel/mini 1.2.6: [上游源码与发行包](https://registry.npmjs.org/@strudel/mini/-/mini-1.2.6.tgz)（包含源码、README 和许可）；[Strudel 源码仓库](https://codeberg.org/uzu/strudel)。
+- @strudel/tonal 1.2.6: [上游源码与发行包](https://registry.npmjs.org/@strudel/tonal/-/tonal-1.2.6.tgz)（包含源码、README 和许可）；[Strudel 源码仓库](https://codeberg.org/uzu/strudel)。
+- @strudel/transpiler 1.2.6: [上游源码与发行包](https://registry.npmjs.org/@strudel/transpiler/-/transpiler-1.2.6.tgz)（包含源码、README 和许可）；[Strudel 源码仓库](https://codeberg.org/uzu/strudel)。
+- @strudel/webaudio 1.3.0: [上游源码与发行包](https://registry.npmjs.org/@strudel/webaudio/-/webaudio-1.3.0.tgz)（包含源码、README 和许可）；[Strudel 源码仓库](https://codeberg.org/uzu/strudel)。
+- superdough 1.3.0: [上游源码与发行包](https://registry.npmjs.org/superdough/-/superdough-1.3.0.tgz)（包含源码、README 和许可）；[Strudel 源码仓库](https://codeberg.org/uzu/strudel)。
+- supradough 1.2.4: [上游源码与发行包](https://registry.npmjs.org/supradough/-/supradough-1.2.4.tgz)（包含源码、README 和许可）；[Strudel 源码仓库](https://codeberg.org/uzu/strudel)。
 
 | 包 | 锁定版本 | 许可 | 用途 |
 | --- | --- | --- | --- |
 | @alloc/quick-lru | 5.2.0 | MIT | 开发/构建 |
 | @asamuzakjp/css-color | 3.2.0 | MIT | 开发/构建 |
+| lru-cache | 10.4.3 | ISC | 开发/构建 |
 | @babel/code-frame | 7.29.7 | MIT | 开发/构建 |
 | @babel/compat-data | 7.29.7 | MIT | 开发/构建 |
 | @babel/core | 7.29.7 | MIT | 开发/构建 |
@@ -24,6 +36,7 @@ Strudel runtime 当前未安装、未分发。安装时须更新本清单，收�
 | @babel/parser | 7.29.9 | MIT | 开发/构建 |
 | @babel/plugin-transform-react-jsx-self | 7.27.1 | MIT | 开发/构建 |
 | @babel/plugin-transform-react-jsx-source | 7.27.1 | MIT | 开发/构建 |
+| @babel/runtime | 7.29.7 | MIT | 运行时 |
 | @babel/template | 7.29.7 | MIT | 开发/构建 |
 | @babel/traverse | 7.29.8 | MIT | 开发/构建 |
 | @babel/types | 7.29.8 | MIT | 开发/构建 |
@@ -63,6 +76,9 @@ Strudel runtime 当前未安装、未分发。安装时须更新本清单，收�
 | @jridgewell/resolve-uri | 3.1.2 | MIT | 开发/构建 |
 | @jridgewell/sourcemap-codec | 1.5.5 | MIT | 开发/构建 |
 | @jridgewell/trace-mapping | 0.3.31 | MIT | 开发/构建 |
+| @kabelsalat/core | 0.4.0 | AGPL-3.0-or-later | 运行时 |
+| @kabelsalat/lib | 0.4.1 | AGPL-3.0-or-later | 运行时 |
+| @kabelsalat/web | 0.4.1 | AGPL-3.0-or-later | 运行时 |
 | @nodelib/fs.scandir | 2.1.5 | MIT | 开发/构建 |
 | @nodelib/fs.stat | 2.0.5 | MIT | 开发/构建 |
 | @nodelib/fs.walk | 1.2.8 | MIT | 开发/构建 |
@@ -92,28 +108,84 @@ Strudel runtime 当前未安装、未分发。安装时须更新本清单，收�
 | @rollup/rollup-win32-ia32-msvc | 4.60.1 | MIT | 开发/构建 |
 | @rollup/rollup-win32-x64-gnu | 4.60.1 | MIT | 开发/构建 |
 | @rollup/rollup-win32-x64-msvc | 4.60.1 | MIT | 开发/构建 |
+| @strudel/core | 1.2.6 | AGPL-3.0-or-later | 运行时 |
+| @strudel/draw | 1.2.6 | AGPL-3.0-or-later | 运行时 |
+| @strudel/mini | 1.2.6 | AGPL-3.0-or-later | 运行时 |
+| @strudel/tonal | 1.2.6 | AGPL-3.0-or-later | 运行时 |
+| @strudel/transpiler | 1.2.6 | AGPL-3.0-or-later | 运行时 |
+| @strudel/webaudio | 1.3.0 | AGPL-3.0-or-later | 运行时 |
+| @tonaljs/abc-notation | 4.9.2 | MIT | 运行时 |
+| @tonaljs/array | 4.8.5 | MIT | 运行时 |
+| @tonaljs/chord | 4.10.2 | MIT | 运行时 |
+| @tonaljs/chord-detect | 4.9.2 | MIT | 运行时 |
+| @tonaljs/chord-type | 5.2.0 | MIT | 运行时 |
+| @tonaljs/chord-type | 4.8.2 | MIT | 运行时 |
+| @tonaljs/collection | 4.9.0 | MIT | 运行时 |
+| @tonaljs/core | 4.10.4 | MIT | 运行时 |
+| @tonaljs/pitch-distance | 5.0.2 | MIT | 运行时 |
+| @tonaljs/pitch-note | 5.0.3 | MIT | 运行时 |
+| @tonaljs/duration-value | 4.9.0 | MIT | 运行时 |
+| @tonaljs/interval | 4.8.2 | MIT | 运行时 |
+| @tonaljs/key | 4.11.3 | MIT | 运行时 |
+| @tonaljs/midi | 4.10.3 | MIT | 运行时 |
+| @tonaljs/mode | 4.9.3 | MIT | 运行时 |
+| @tonaljs/interval | 5.1.0 | MIT | 运行时 |
+| @tonaljs/pitch | 5.0.2 | MIT | 运行时 |
+| @tonaljs/pitch-interval | 6.1.1 | MIT | 运行时 |
+| @tonaljs/note | 4.12.2 | MIT | 运行时 |
+| @tonaljs/pitch | 5.0.2 | MIT | 运行时 |
+| @tonaljs/pitch-interval | 6.1.1 | MIT | 运行时 |
+| @tonaljs/pcset | 4.10.2 | MIT | 运行时 |
+| @tonaljs/pitch | 5.0.2 | MIT | 运行时 |
+| @tonaljs/pitch-interval | 6.1.1 | MIT | 运行时 |
+| @tonaljs/pitch | 5.0.1 | MIT | 运行时 |
+| @tonaljs/pitch-distance | 5.0.6 | MIT | 运行时 |
+| @tonaljs/pitch | 5.0.2 | MIT | 运行时 |
+| @tonaljs/pitch-interval | 6.1.1 | MIT | 运行时 |
+| @tonaljs/pitch-interval | 5.0.2 | MIT | 运行时 |
+| @tonaljs/pitch-note | 6.1.1 | MIT | 运行时 |
+| @tonaljs/pitch | 5.0.2 | MIT | 运行时 |
+| @tonaljs/progression | 4.9.3 | MIT | 运行时 |
+| @tonaljs/chord | 6.2.0 | MIT | 运行时 |
+| @tonaljs/chord-type | 5.2.0 | MIT | 运行时 |
+| @tonaljs/interval | 5.1.0 | MIT | 运行时 |
+| @tonaljs/pitch | 5.0.2 | MIT | 运行时 |
+| @tonaljs/pitch-interval | 6.1.1 | MIT | 运行时 |
+| @tonaljs/range | 4.9.3 | MIT | 运行时 |
+| @tonaljs/roman-numeral | 4.9.2 | MIT | 运行时 |
+| @tonaljs/pitch | 5.0.2 | MIT | 运行时 |
+| @tonaljs/pitch-interval | 6.1.1 | MIT | 运行时 |
+| @tonaljs/scale | 4.13.5 | MIT | 运行时 |
+| @tonaljs/scale-type | 4.9.3 | MIT | 运行时 |
+| @tonaljs/chord-type | 5.2.0 | MIT | 运行时 |
+| @tonaljs/time-signature | 4.10.0 | MIT | 运行时 |
+| @tonaljs/tonal | 4.10.0 | MIT | 运行时 |
 | @types/babel__core | 7.20.5 | MIT | 开发/构建 |
 | @types/babel__generator | 7.27.0 | MIT | 开发/构建 |
 | @types/babel__template | 7.4.4 | MIT | 开发/构建 |
 | @types/babel__traverse | 7.28.0 | MIT | 开发/构建 |
-| @types/estree | 1.0.8 | MIT | 开发/构建 |
+| @types/estree | 1.0.8 | MIT | 运行时 |
 | @types/node | 22.19.17 | MIT | 开发/构建 |
 | @types/react | 19.3.0 | MIT | 开发/构建 |
 | @types/react-dom | 19.3.0 | MIT | 开发/构建 |
 | @vitejs/plugin-react | 5.2.0 | MIT | 开发/构建 |
 | accepts | 1.3.8 | MIT | 运行时 |
+| acorn | 8.17.0 | MIT | 运行时 |
 | agent-base | 7.1.4 | MIT | 开发/构建 |
 | ajv | 8.20.0 | MIT | 运行时 |
 | ansi-regex | 5.0.1 | MIT | 开发/构建 |
 | ansi-styles | 4.3.0 | MIT | 开发/构建 |
 | any-promise | 1.3.0 | MIT | 开发/构建 |
 | anymatch | 3.1.3 | ISC | 开发/构建 |
+| picomatch | 2.3.2 | MIT | 开发/构建 |
 | arg | 5.0.2 | MIT | 开发/构建 |
 | array-flatten | 1.1.1 | MIT | 运行时 |
 | autoprefixer | 10.5.0 | MIT | 开发/构建 |
 | baseline-browser-mapping | 2.11.27 | Apache-2.0 | 开发/构建 |
 | binary-extensions | 2.3.0 | MIT | 开发/构建 |
 | body-parser | 1.20.8 | MIT | 运行时 |
+| debug | 2.6.9 | MIT | 运行时 |
+| ms | 2.0.0 | MIT | 运行时 |
 | boolbase | 1.0.0 | ISC | 运行时 |
 | braces | 3.0.3 | MIT | 开发/构建 |
 | browserslist | 4.29.3 | MIT | 开发/构建 |
@@ -123,9 +195,12 @@ Strudel runtime 当前未安装、未分发。安装时须更新本清单，收�
 | camelcase-css | 2.0.1 | MIT | 开发/构建 |
 | caniuse-lite | 1.0.30001814 | CC-BY-4.0 | 开发/构建 |
 | chalk | 4.1.2 | MIT | 开发/构建 |
+| supports-color | 7.2.0 | MIT | 开发/构建 |
 | cheerio | 1.2.0 | MIT | 运行时 |
 | cheerio-select | 2.1.0 | BSD-2-Clause | 运行时 |
 | chokidar | 3.6.0 | MIT | 开发/构建 |
+| glob-parent | 5.1.2 | ISC | 开发/构建 |
+| chord-voicings | 0.0.1 | ISC | 运行时 |
 | cliui | 8.0.1 | ISC | 开发/构建 |
 | color-convert | 2.0.1 | MIT | 开发/构建 |
 | color-name | 1.1.4 | MIT | 开发/构建 |
@@ -143,15 +218,12 @@ Strudel runtime 当前未安装、未分发。安装时须更新本清单，收�
 | cssstyle | 4.6.0 | MIT | 开发/构建 |
 | csstype | 3.2.3 | MIT | 开发/构建 |
 | data-urls | 5.0.0 | MIT | 开发/构建 |
-| debug | 2.6.9 | MIT | 运行时 |
-| debug | 2.6.9 | MIT | 运行时 |
-| debug | 2.6.9 | MIT | 运行时 |
-| debug | 2.6.9 | MIT | 运行时 |
 | debug | 4.4.3 | MIT | 开发/构建 |
 | decimal.js | 10.6.0 | MIT | 开发/构建 |
 | depd | 2.0.0 | MIT | 运行时 |
 | destroy | 1.2.0 | MIT | 运行时 |
 | didyoumean | 1.2.2 | Apache-2.0 | 开发/构建 |
+| djipevents | 2.0.7 | Apache-2.0 | 运行时 |
 | dlv | 1.1.3 | MIT | 开发/构建 |
 | dom-serializer | 2.0.0 | MIT | 运行时 |
 | domelementtype | 2.3.0 | BSD-2-Clause | 运行时 |
@@ -164,26 +236,35 @@ Strudel runtime 当前未安装、未分发。安装时须更新本清单，收�
 | emoji-regex | 8.0.0 | MIT | 开发/构建 |
 | encodeurl | 2.0.0 | MIT | 运行时 |
 | encoding-sniffer | 0.2.1 | MIT | 运行时 |
+| iconv-lite | 0.6.3 | MIT | 运行时 |
 | entities | 4.5.0 | BSD-2-Clause | 运行时 |
-| entities | 6.0.1 | BSD-2-Clause | 运行时 |
-| entities | 7.0.1 | BSD-2-Clause | 运行时 |
 | es-define-property | 1.0.1 | MIT | 运行时 |
 | es-errors | 1.3.0 | MIT | 运行时 |
 | es-object-atoms | 1.1.1 | MIT | 运行时 |
 | esbuild | 0.25.12 | MIT | 开发/构建 |
 | escalade | 3.2.0 | MIT | 开发/构建 |
 | escape-html | 1.0.3 | MIT | 运行时 |
+| escodegen | 2.1.0 | BSD-2-Clause | 运行时 |
+| esprima | 4.0.1 | BSD-2-Clause | 运行时 |
+| estraverse | 5.3.0 | BSD-2-Clause | 运行时 |
+| estree-walker | 3.0.3 | MIT | 运行时 |
+| esutils | 2.0.3 | BSD-2-Clause | 运行时 |
 | etag | 1.8.1 | MIT | 运行时 |
 | express | 4.22.3 | MIT | 运行时 |
+| debug | 2.6.9 | MIT | 运行时 |
+| ms | 2.0.0 | MIT | 运行时 |
 | fast-deep-equal | 3.1.3 | MIT | 运行时 |
 | fast-glob | 3.3.3 | MIT | 开发/构建 |
+| glob-parent | 5.1.2 | ISC | 开发/构建 |
 | fast-uri | 3.1.8 | BSD-3-Clause | 运行时 |
 | fastq | 1.20.1 | ISC | 开发/构建 |
 | fdir | 6.5.0 | MIT | 开发/构建 |
 | fill-range | 7.1.1 | MIT | 开发/构建 |
 | finalhandler | 1.3.2 | MIT | 运行时 |
+| debug | 2.6.9 | MIT | 运行时 |
+| ms | 2.0.0 | MIT | 运行时 |
 | forwarded | 0.2.0 | MIT | 运行时 |
-| fraction.js | 5.3.4 | MIT | 开发/构建 |
+| fraction.js | 5.3.4 | MIT | 运行时 |
 | fresh | 0.5.2 | MIT | 运行时 |
 | fsevents | 2.3.3 | MIT | 开发/构建 |
 | function-bind | 1.1.2 | MIT | 运行时 |
@@ -191,8 +272,6 @@ Strudel runtime 当前未安装、未分发。安装时须更新本清单，收�
 | get-caller-file | 2.0.5 | ISC | 开发/构建 |
 | get-intrinsic | 1.3.0 | MIT | 运行时 |
 | get-proto | 1.0.1 | MIT | 运行时 |
-| glob-parent | 5.1.2 | ISC | 开发/构建 |
-| glob-parent | 5.1.2 | ISC | 开发/构建 |
 | glob-parent | 6.0.2 | ISC | 开发/构建 |
 | gopd | 1.2.0 | MIT | 运行时 |
 | has-flag | 4.0.0 | MIT | 开发/构建 |
@@ -200,12 +279,11 @@ Strudel runtime 当前未安装、未分发。安装时须更新本清单，收�
 | hasown | 2.0.2 | MIT | 运行时 |
 | html-encoding-sniffer | 4.0.0 | MIT | 开发/构建 |
 | htmlparser2 | 10.1.0 | MIT | 运行时 |
+| entities | 7.0.1 | BSD-2-Clause | 运行时 |
 | http-errors | 2.0.1 | MIT | 运行时 |
 | http-proxy-agent | 7.0.2 | MIT | 开发/构建 |
 | https-proxy-agent | 7.0.6 | MIT | 开发/构建 |
 | iconv-lite | 0.4.24 | MIT | 运行时 |
-| iconv-lite | 0.6.3 | MIT | 运行时 |
-| iconv-lite | 0.6.3 | MIT | 运行时 |
 | inherits | 2.0.4 | ISC | 运行时 |
 | ipaddr.js | 1.9.1 | MIT | 运行时 |
 | is-binary-path | 2.1.0 | MIT | 开发/构建 |
@@ -215,15 +293,16 @@ Strudel runtime 当前未安装、未分发。安装时须更新本清单，收�
 | is-glob | 4.0.3 | MIT | 开发/构建 |
 | is-number | 7.0.0 | MIT | 开发/构建 |
 | is-potential-custom-element-name | 1.0.1 | MIT | 开发/构建 |
+| jazz-midi | 1.7.9 | MIT | 运行时 |
 | jiti | 1.21.7 | MIT | 开发/构建 |
 | js-tokens | 4.0.0 | MIT | 开发/构建 |
 | jsdom | 26.1.0 | MIT | 开发/构建 |
 | jsesc | 3.1.0 | MIT | 开发/构建 |
 | json-schema-traverse | 1.0.0 | MIT | 运行时 |
 | json5 | 2.2.3 | MIT | 开发/构建 |
+| jzz | 1.9.6 | MIT | 运行时 |
 | lilconfig | 3.1.3 | MIT | 开发/构建 |
 | lines-and-columns | 1.2.4 | MIT | 开发/构建 |
-| lru-cache | 10.4.3 | ISC | 开发/构建 |
 | lru-cache | 5.1.1 | ISC | 开发/构建 |
 | math-intrinsics | 1.1.0 | MIT | 运行时 |
 | media-typer | 0.3.0 | MIT | 运行时 |
@@ -231,16 +310,14 @@ Strudel runtime 当前未安装、未分发。安装时须更新本清单，收�
 | merge2 | 1.4.1 | MIT | 开发/构建 |
 | methods | 1.1.2 | MIT | 运行时 |
 | micromatch | 4.0.8 | MIT | 开发/构建 |
+| picomatch | 2.3.2 | MIT | 开发/构建 |
 | mime | 1.6.0 | MIT | 运行时 |
 | mime-db | 1.52.0 | MIT | 运行时 |
 | mime-types | 2.1.35 | MIT | 运行时 |
-| ms | 2.0.0 | MIT | 运行时 |
-| ms | 2.0.0 | MIT | 运行时 |
-| ms | 2.0.0 | MIT | 运行时 |
-| ms | 2.0.0 | MIT | 运行时 |
 | ms | 2.1.3 | MIT | 运行时 |
 | mz | 2.7.0 | MIT | 开发/构建 |
 | nanoid | 3.3.19 | MIT | 开发/构建 |
+| nanostores | 0.11.4 | MIT | 运行时 |
 | negotiator | 0.6.3 | MIT | 运行时 |
 | node-releases | 2.0.57 | MIT | 开发/构建 |
 | normalize-path | 3.0.0 | MIT | 开发/构建 |
@@ -253,13 +330,11 @@ Strudel runtime 当前未安装、未分发。安装时须更新本清单，收�
 | parse5 | 7.3.0 | MIT | 运行时 |
 | parse5-htmlparser2-tree-adapter | 7.1.0 | MIT | 运行时 |
 | parse5-parser-stream | 7.1.2 | MIT | 运行时 |
+| entities | 6.0.1 | BSD-2-Clause | 运行时 |
 | parseurl | 1.3.3 | MIT | 运行时 |
 | path-parse | 1.0.7 | MIT | 开发/构建 |
 | path-to-regexp | 0.1.13 | MIT | 运行时 |
 | picocolors | 1.1.1 | ISC | 开发/构建 |
-| picomatch | 2.3.2 | MIT | 开发/构建 |
-| picomatch | 2.3.2 | MIT | 开发/构建 |
-| picomatch | 2.3.2 | MIT | 开发/构建 |
 | picomatch | 4.0.4 | MIT | 开发/构建 |
 | pify | 2.3.0 | MIT | 开发/构建 |
 | pirates | 4.0.7 | MIT | 开发/构建 |
@@ -281,6 +356,7 @@ Strudel runtime 当前未安装、未分发。安装时须更新本清单，收�
 | react-refresh | 0.18.0 | MIT | 开发/构建 |
 | read-cache | 1.0.0 | MIT | 开发/构建 |
 | readdirp | 3.6.0 | MIT | 开发/构建 |
+| picomatch | 2.3.2 | MIT | 开发/构建 |
 | require-directory | 2.1.1 | MIT | 开发/构建 |
 | require-from-string | 2.0.2 | MIT | 运行时 |
 | resolve | 1.22.12 | MIT | 开发/构建 |
@@ -295,6 +371,8 @@ Strudel runtime 当前未安装、未分发。安装时须更新本清单，收�
 | scheduler | 0.27.0 | MIT | 运行时 |
 | semver | 6.3.1 | ISC | 开发/构建 |
 | send | 0.19.2 | MIT | 运行时 |
+| debug | 2.6.9 | MIT | 运行时 |
+| ms | 2.0.0 | MIT | 运行时 |
 | serve-static | 1.16.3 | MIT | 运行时 |
 | setprototypeof | 1.2.0 | ISC | 运行时 |
 | shell-quote | 1.9.0 | MIT | 开发/构建 |
@@ -302,14 +380,16 @@ Strudel runtime 当前未安装、未分发。安装时须更新本清单，收�
 | side-channel-list | 1.0.1 | MIT | 运行时 |
 | side-channel-map | 1.0.1 | MIT | 运行时 |
 | side-channel-weakmap | 1.0.2 | MIT | 运行时 |
+| source-map | 0.6.1 | BSD-3-Clause | 运行时 |
 | source-map-js | 1.2.1 | BSD-3-Clause | 开发/构建 |
 | statuses | 2.0.2 | MIT | 运行时 |
 | string-width | 4.2.3 | MIT | 开发/构建 |
 | strip-ansi | 6.0.1 | MIT | 开发/构建 |
 | sucrase | 3.35.1 | MIT | 开发/构建 |
-| supports-color | 7.2.0 | MIT | 开发/构建 |
+| superdough | 1.3.0 | AGPL-3.0-or-later | 运行时 |
 | supports-color | 8.1.1 | MIT | 开发/构建 |
 | supports-preserve-symlinks-flag | 1.0.0 | MIT | 开发/构建 |
+| supradough | 1.2.4 | AGPL-3.0-or-later | 运行时 |
 | symbol-tree | 3.2.4 | MIT | 开发/构建 |
 | tailwindcss | 3.4.19 | MIT | 开发/构建 |
 | thenify | 3.3.1 | MIT | 开发/构建 |
@@ -336,7 +416,9 @@ Strudel runtime 当前未安装、未分发。安装时须更新本清单，收�
 | vite | 6.4.3 | MIT | 开发/构建 |
 | w3c-xmlserializer | 5.0.0 | MIT | 开发/构建 |
 | webidl-conversions | 7.0.0 | BSD-2-Clause | 开发/构建 |
+| webmidi | 3.3.1 | Apache-2.0 | 运行时 |
 | whatwg-encoding | 3.1.1 | MIT | 运行时 |
+| iconv-lite | 0.6.3 | MIT | 运行时 |
 | whatwg-mimetype | 4.0.0 | MIT | 运行时 |
 | whatwg-url | 14.2.0 | MIT | 开发/构建 |
 | wrap-ansi | 7.0.0 | MIT | 开发/构建 |

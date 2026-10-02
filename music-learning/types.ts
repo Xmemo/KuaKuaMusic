@@ -198,5 +198,6 @@ export interface AgentHealth {
   projectConfiguration: "explicit" | "unverified";
   musicBrainz: "ready" | "unavailable";
   webResearch: "unverified";
-  strudelRuntime: "not_installed";
+  strudelRuntime: "bundled";
+  strudelRuntimeVersion: string;
 }

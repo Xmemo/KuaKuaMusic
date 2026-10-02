@@ -56,7 +56,8 @@ app.use(
       projectConfiguration: "loaded",
       musicBrainz: "ready",
       webResearch: "unverified",
-      strudelRuntime: "license_pending",
+      strudelRuntime: "bundled",
+      strudelRuntimeVersion: "core-1.2.6/webaudio-1.3.0",
     }),
   }),
 );

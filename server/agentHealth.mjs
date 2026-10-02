@@ -1,5 +1,6 @@
 import { checkCodexAvailable, getCodexBridgeConfig, runCodexCommand } from "./codexBridge.mjs";
 import { MUSICBRAINZ_MCP_URL } from "./researchConfig.mjs";
+import { STRUDEL_RUNTIME_VERSION } from "../studio/runtimeConfig.mjs";
 let cached = null,
   pending = null;
 function parseRpc(text) {
@@ -86,7 +87,8 @@ export async function getAgentHealth({ refresh = false } = {}) {
       projectConfiguration: configured ? "explicit" : "unverified",
       musicBrainz,
       webResearch: "unverified",
-      strudelRuntime: "not_installed",
+      strudelRuntime: "bundled",
+      strudelRuntimeVersion: STRUDEL_RUNTIME_VERSION,
     };
     cached = { at: Date.now(), value };
     return value;

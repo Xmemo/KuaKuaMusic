@@ -73,7 +73,7 @@ Never claim a learning reconstruction is the original song.
 
 ## Repository changes
 
-The current architecture deliberately does not bundle @strudel packages until the AGPL licensing decision is explicit. Keep Strudel runtime integration behind an adapter boundary.
+The AGPL licensing decision is recorded in docs/STRUDEL_LICENSE_DECISION.md. The pinned Strudel runtime is bundled behind an adapter boundary. Preserve upstream notices and corresponding source access. Generate musical expressions using the built-in synthesizers; do not generate browser/network operations or external sample-bank dependencies.
 
 
 Implementation contracts are defined in music-learning/contracts.mjs; regenerate schemas with npm run schemas:generate. Consult docs/TECHNICAL_ARCHITECTURE_V1.1.md for current API and persistence boundaries. Preserve independent analysis snapshots and every deep-dive turn. Never trust a client-supplied analysis or provenance label.

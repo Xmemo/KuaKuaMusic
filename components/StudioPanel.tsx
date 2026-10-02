@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import StudioPlayer from "./StudioPlayer";
 import type { StoredDeepDive } from "../music-learning/types";
 import {
   proposeStudioEdit,
@@ -188,6 +189,13 @@ export default function StudioPanel({
         {session.experiment.listenFor.join("；")}
       </p>
       <p className="notice">{session.experiment.limitation}</p>
+      <StudioPlayer
+        code={code}
+        baseline={session.revisions[0].code}
+        alternative={session.alternativeCode}
+        playback={{ ...current.playback, bpm, beatsPerCycle: beats }}
+        hints={session.visualHints}
+      />
       <label htmlFor="pattern">实验代码</label>
       <textarea
         id="pattern"
@@ -316,7 +324,7 @@ export default function StudioPanel({
         <p className="muted">请先预览并应用当前草稿，再保存或请求建议。</p>
       ) : null}
       <div className="runtime-boundary">
-        <p>当前版本支持编辑、比较和保存。项目已采用 AGPL 许可，内置播放仍待接入。</p>
+        <p>可在上方直接试听，或导出代码到 Strudel 编辑器继续实验。</p>
         <button
           onClick={() =>
             download("music-learning-pattern.js", strudelExport(current))
@@ -333,7 +341,7 @@ export default function StudioPanel({
           >
             Strudel 官方编辑器 ↗
           </a>{" "}
-          可试听。两个版本使用相同的速度与音源条件比较。
+          可继续编辑。内置音源为教学合成音，不是原曲录音。
         </p>
       </div>
       {notice ? <p role="status">{notice}</p> : null}

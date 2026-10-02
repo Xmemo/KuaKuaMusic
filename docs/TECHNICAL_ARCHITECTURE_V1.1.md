@@ -60,16 +60,16 @@ React/Vite 调用本机 Express。一次研究由同一个 Codex Agent 分阶段
 
 保存还检查 saveVersion，拒绝另一页面提交的旧记录，避免覆盖已保存的新历史。
 
-服务端从原始 seed 重新确认来源类型，客户端不能把修改后的代码标成 source_transcription。当前固定 soundBank=default、runtimeVersion=unbound。导出包含 setcpm(bpm/beatsPerCycle)，保持版本的时间条件。
+服务端从原始 seed 重新确认来源类型，客户端不能把修改后的代码标成 source_transcription。新实验使用 soundBank=kua-synth-v1、runtimeVersion=core-1.2.6/webaudio-1.3.0。历史 default/unbound 实验映射到固定运行时，不改写保存内容。导出包含 setcpm(bpm/beatsPerCycle)，保持版本的时间条件。
 
-**已实现：**编辑、预览 A/B、AI 建议、应用、撤销、重做、保存、恢复、导出。
+**已实现：**编辑、预览 A/B、AI 建议、应用、撤销、重做、保存、恢复、导出；内置播放当前草稿、试听 A/B、停止、音量；Strudel 原生动态图。
 
-**未实现：**内置 runtime 播放、代码语法/音源可用性验证、原生动态 visual feedback、录音渲染。当前代码不会在应用内执行，StrudelStudioAdapter 保留这些能力的接口；导出代码也未宣称在真实 runtime 中全部验过。任何未来 runtime 接入必须考虑不可信 JavaScript 执行与资源边界，不能只做字符串黑名单。
+**未实现：**录音渲染与音频文件导出。播放通过 StrudelStudioAdapter 接入固定版本包。先以 AST 白名单验证音乐表达式，再使用上游 transpiler/REPL；拒绝构造器、计算属性、宿主浏览器访问、网络、导入及任意 JavaScript 语句。播放前验证速度、运行时、音源与事件密度。只在用户点击时启动音频，停止会断开旧音轨和效果尾音，离开 Studio 会关闭音频上下文。原生视图使用上游 draw/webaudio 代码，音源为本项目合成的鼓音与内置振荡器。
 
-AGENTS 的现有许可门槛仍然生效：先确定项目与分发许可，再 bundle @strudel/*。官方编辑器导出路径是当前试听途径，不构成许可结论。
+AGPL 决策已经落实。构建包含 LICENSE、NOTICE、THIRD_PARTY_NOTICES.md、BUNDLED_LICENSES.txt，界面显示真实上游版权与运行版本对应源码入口。许可与本机播放验收见 [运行时验收记录](STRUDEL_RUNTIME_ACCEPTANCE_2026-10-02.md)。
 
 ## 验收范围
 
 自动回归验证 Schema、悬空证据、错误主题/版本、不可读取片段、身份降级、通用教学入口、累计资料、分析不覆盖、Studio provenance、速度恢复、本机授权、并发任务、取消和 CLI 输出/超时。DOM 交互回归已覆盖深挖、保存后重新挂载恢复、速度与来源标签撤销、修改预览过期和 AI 建议不覆盖新草稿。
 
-2026-10-02 已在 Mac 的 Chrome 完成真实分析、两轮深挖和一轮连续实验复验，保存、服务重启与刷新恢复、桌面及 390 像素窄屏验收。来源与当前已保存实验由服务端传给后续研究，客户端不能覆盖这份上下文。样例的具体发行/母带仍未核实，保留身份降级与通用教学标记。详情见 [本机验收记录](LOCAL_ACCEPTANCE_2026-10-02.md)。内置 Strudel 播放验收仍需许可决定及 runtime 实现。
+2026-10-02 已在 Mac 的 Chrome 完成真实分析、两轮深挖和一轮连续实验复验，保存、服务重启与刷新恢复、桌面及 390 像素窄屏验收。来源与当前已保存实验由服务端传给后续研究，客户端不能覆盖这份上下文。样例的具体发行/母带仍未核实，保留身份降级与通用教学标记。详情见 [本机验收记录](LOCAL_ACCEPTANCE_2026-10-02.md)。内置 Strudel 播放的后续接入与验收见运行时验收记录。

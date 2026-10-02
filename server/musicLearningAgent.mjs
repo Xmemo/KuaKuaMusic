@@ -11,6 +11,7 @@ import {
 import { validateContract } from "./schemaValidation.mjs";
 import { registerSources } from "./sourceRegistry.mjs";
 import { AppError, invariant } from "./errors.mjs";
+import { STRUDEL_RUNTIME_VERSION, STRUDEL_SOUND_BANK } from "../studio/runtimeConfig.mjs";
 const serialize = (value) => JSON.stringify(value, null, 2);
 const optional = (value, max) =>
   value == null ? null : String(value).trim().slice(0, max) || null;
@@ -269,7 +270,7 @@ export function createMusicLearningAgent({
         "If the question continues a previous experiment, use currentExperiment (including saved user edits) as the baseline. Preserve its sounds, tempo and other parameters unless the question requests changing them. A new independent question need not reuse that experiment. Previous teaching code is not evidence of the original recording.",
         "If useful, supply a SMALL A/B Strudel experiment changing ONE variable, with constants, listening goals, and limitation. Default sourceType=learning_reconstruction.",
         "Use known built-in synths for harmony, and default bd/sd/hh only for drums. No custom sample URLs, imports or JavaScript side effects.",
-        "Do not include global tempo commands in code. playback.bpm and beatsPerCycle define tempo; use soundBank=default and runtimeVersion=unbound until runtime integration.",
+        `Do not include global tempo commands in code. playback.bpm and beatsPerCycle define tempo; use soundBank=${STRUDEL_SOUND_BANK} and runtimeVersion=${STRUDEL_RUNTIME_VERSION}. Built-in sounds: bd, sd, hh, oh, cp, sine, triangle, sawtooth, square. Use only Strudel musical expressions, stack, constant declarations, musical transforms and native visual methods. Do not use imports, samples, fetch, browser APIs, arbitrary JavaScript, or external banks. Keep each cycle below 256 events.`,
         "Each eligible seed needs baseline code and alternativeCode; use _punchcard or _pianoroll only as appropriate. A score source must match the actual content for source_transcription.",
         "DATA:\n" +
           serialize({

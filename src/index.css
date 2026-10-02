@@ -129,6 +129,16 @@ body {
 .music-app pre { background: #0b0911; padding: 18px; overflow: auto; border-radius: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .music-app .playback-controls { display: flex; gap: 16px; }
 .music-app .playback-controls label { max-width: 220px; }
+.music-app .studio-player { background: #171221; border: 1px solid #49375f; border-radius: 16px; margin: 24px 0; padding: 20px; }
+.music-app .studio-player h3 { margin: 0; }
+.music-app .studio-player .section-top p { margin: 8px 0; }
+.music-app .studio-player .is-playing { color: #ffd87b; border-color: #b18d40; }
+.music-app .studio-player button[aria-pressed="true"] { border-color: #ffd87b; background: #392c22; }
+.music-app .player-volume { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 20px 0; font-size: 14px; }
+.music-app .player-volume label { margin: 0; }
+.music-app .player-volume input { width: 140px; accent-color: #b49be9; }
+.music-app .strudel-visual { display: block; width: 100%; height: 210px; background: #100e19; border-radius: 10px; }
+.music-app .player-license { font-size: 12px; margin: 16px 0 0; overflow-wrap: anywhere; }
 .music-app .proposal, .music-app .runtime-boundary { border-top: 1px solid #4d3b5f; margin-top: 20px; padding-top: 16px; }
 .music-app footer { text-align: center; padding: 32px 24px; color: #b3a9c7; font-size: 13px; }
 @media (max-width: 700px) {

@@ -243,7 +243,8 @@ test("health uses supported exec diagnostics and requires a reachable MCP", asyn
     assert.equal(healthy.projectConfiguration, "explicit");
     assert.equal(healthy.model, getCodexBridgeConfig().model);
     assert.equal(healthy.reasoningEffort, "xhigh");
-    assert.equal(healthy.strudelRuntime, "not_installed");
+    assert.equal(healthy.strudelRuntime, "bundled");
+    assert.equal(healthy.strudelRuntimeVersion, "core-1.2.6/webaudio-1.3.0");
     globalThis.fetch = async () => { throw new Error("offline"); };
     assert.equal((await getAgentHealth({ refresh: true })).ok, false);
   } finally { globalThis.fetch = previousFetch; delete process.env.CODEX_BIN; }
