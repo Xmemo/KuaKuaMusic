@@ -193,7 +193,7 @@ export interface AgentHealth {
   codexAvailable: boolean;
   codexVersion: string | null;
   authentication: "ready" | "unavailable";
-  projectConfiguration: "loaded" | "unverified";
+  projectConfiguration: "explicit" | "unverified";
   musicBrainz: "ready" | "unavailable";
   webResearch: "unverified";
   strudelRuntime: "license_pending";

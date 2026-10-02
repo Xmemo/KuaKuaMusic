@@ -1,4 +1,5 @@
 import { checkCodexAvailable, runCodexCommand } from "./codexBridge.mjs";
+import { MUSICBRAINZ_MCP_URL } from "./researchConfig.mjs";
 let cached = null,
   pending = null;
 function parseRpc(text) {
@@ -9,7 +10,7 @@ function parseRpc(text) {
   return line ? JSON.parse(line.slice(5).trim()) : null;
 }
 export async function probeMusicBrainz(fetcher = fetch) {
-  const url = "https://musicbrainz.caseyjhand.com/mcp";
+  const url = MUSICBRAINZ_MCP_URL;
   const headers = {
     "Content-Type": "application/json",
     Accept: "application/json, text/event-stream",
@@ -68,28 +69,19 @@ export async function getAgentHealth({ refresh = false } = {}) {
         ? runCodexCommand(["login", "status"]).catch(() => null)
         : null,
       cli.available
-        ? runCodexCommand([
-            "--ignore-user-config",
-            "mcp",
-            "list",
-            "--json",
-          ]).catch(() => null)
+        ? runCodexCommand(["exec", "--help"]).catch(() => null)
         : null,
       probeMusicBrainz(),
     ]);
-    let configured = false;
-    try {
-      const value = JSON.parse(configuration?.stdout || "null");
-      configured = JSON.stringify(value).includes(
-        "musicbrainz.caseyjhand.com/mcp",
-      );
-    } catch {}
+    const configured = configuration?.code === 0 &&
+      ["--ignore-user-config", "--output-schema"].every((flag) =>
+        configuration.stdout.includes(flag));
     const value = {
-      ok: cli.available && login?.code === 0 && configured,
+      ok: cli.available && login?.code === 0 && configured && musicBrainz === "ready",
       codexAvailable: cli.available,
       codexVersion: cli.version,
       authentication: login?.code === 0 ? "ready" : "unavailable",
-      projectConfiguration: configured ? "loaded" : "unverified",
+      projectConfiguration: configured ? "explicit" : "unverified",
       musicBrainz,
       webResearch: "unverified",
       strudelRuntime: "license_pending",

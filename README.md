@@ -15,11 +15,12 @@ npm ci
 cp .env.example .env.local
 codex --version
 codex login status
-codex --ignore-user-config mcp list --json
 npm run dev
 ```
 
-打开 `http://127.0.0.1:3000`。前端和 API 仅绑定本机回环地址。Codex 需要信任本项目，才能加载 `.codex/config.toml` 中的 MusicBrainz MCP。Bridge 忽略用户级配置，保留本机登录凭据和受信任项目配置。
+打开 `http://127.0.0.1:3000`。前端和 API 仅绑定本机回环地址。Bridge 忽略用户级配置，保留本机登录凭据，并通过每次 `codex exec` 的配置参数显式启用网页研究和公开 MusicBrainz MCP（`server/researchConfig.mjs`）。应用启动无需修改本机的项目信任设置。`.codex/config.toml` 仍可用于交互式 Codex 会话。
+
+来源读取会校验并固定公开 IP。若本机代理返回 `198.18/15` 的合成 DNS 地址，读取器通过固定 Cloudflare DNS-over-HTTPS 服务查询真实公开 IPv4，再执行相同的地址校验和连接固定；其他私网、保留地址以及不安全跳转仍拒绝读取。
 
 网页研究、资料读取和逐条审核可能需要数分钟，可取消。资料少时不会硬填歌曲事实；可以继续提出具体问题，使用明确标注的通用理论与教学实验。
 
@@ -28,8 +29,11 @@ npm run dev
 - 服务端读取公开 HTML / JSON / 纯文本，登记在原文中找到的片段和内容哈希；不可读取的资料保留为未知。
 - 身份、判断和观感进行 Agent 内部审核；结构、来源归属、引用存在性、主题范围和版本一致性由服务端校验。
 - 每次分析得到独立 `analysisId`。深挖追加历史，来源累计合并，Studio 保存代码、速度、循环拍数与来源类型。
+- 搜索列表可逐页展开全部返回候选。当前最多返回 180 个可访问的平台/iTunes 候选，不能保证覆盖整个乐队曲库或全部同名歌曲。
 - Studio 支持 A/B 预览、手动编辑、AI 建议、应用、撤销、重做、保存与 Strudel 代码导出。
 - **内置播放和动态 Strudel visual feedback 尚未接入**：遵循项目的许可决策门槛，未安装 `@strudel/*`。可将导出代码粘贴至 [Strudel 编辑器](https://strudel.cc/) 试听；导出会带上当前版本的速度设置。
+
+具体许可建议、发布变更与权利人待确认项见 [Strudel 许可决策](docs/STRUDEL_LICENSE_DECISION.md)。
 
 “片段在资料中存在”不等于“判断必然正确”。语义审核由模型执行，可能误判；来源、片段、审核记录与未知部分一起保存，便于复查。V1 没有音频输入，不声称已听取或测量原曲。
 

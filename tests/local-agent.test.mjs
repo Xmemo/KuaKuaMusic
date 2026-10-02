@@ -6,7 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import { createApp } from "../server/proxy.mjs";
 import { runCodexCommand, runCodexStructured } from "../server/codexBridge.mjs";
-import { probeMusicBrainz } from "../server/agentHealth.mjs";
+import { probeMusicBrainz, getAgentHealth } from "../server/agentHealth.mjs";
 const temp = await fs.mkdtemp(path.join(os.tmpdir(), "music-local-test-"));
 after(() => fs.rm(temp, { recursive: true, force: true }));
 test("loopback boundary and session authorization block research before invocation; concurrent work and cancellation are bounded", async () => {
@@ -198,4 +198,48 @@ test("MCP doctor tests initialize and tools/list and cleans up its session", asy
     }),
     "unavailable",
   );
+});
+
+test("structured research receives MusicBrainz explicitly in an untrusted checkout", async () => {
+  const bin = path.join(temp, "codex-config-fixture");
+  await fs.writeFile(bin, "#!" + process.execPath + "\n" +
+    "process.stdin.resume(); process.stdin.on('end', () => process.stdout.write(JSON.stringify({args:process.argv.slice(2)})));\n");
+  await fs.chmod(bin, 0o700);
+  process.env.CODEX_BIN = bin;
+  try {
+    const { args } = await runCodexStructured({ prompt: "fixture", outputSchema: "/fixture.json" });
+    assert.equal(args[0], "exec");
+    assert.ok(args.includes("--ignore-user-config"));
+    assert.ok(args.includes('mcp_servers.musicbrainz.url="https://musicbrainz.caseyjhand.com/mcp"'));
+    assert.ok(args.includes('web_search="live"'));
+    assert.equal(args[args.indexOf("--sandbox") + 1], "read-only");
+    assert.ok(!args.some((arg) => arg.includes("trust_level")));
+  } finally { delete process.env.CODEX_BIN; }
+});
+
+test("health uses supported exec diagnostics and requires a reachable MCP", async () => {
+  const bin = path.join(temp, "codex-health-fixture");
+  await fs.writeFile(bin, "#!" + process.execPath + "\n" + [
+    "const args=process.argv.slice(2);",
+    "if(args.join(' ')==='--version') process.stdout.write('codex-fixture');",
+    "else if(args.join(' ')==='login status') process.stderr.write('Logged in');",
+    "else if(args.join(' ')==='exec --help') process.stdout.write('--ignore-user-config --output-schema');",
+    "else process.exit(1);",
+  ].join("\n"));
+  await fs.chmod(bin, 0o700);
+  const previousFetch = globalThis.fetch;
+  process.env.CODEX_BIN = bin;
+  try {
+    globalThis.fetch = async (_url, options) => {
+      const body = JSON.parse(options.body);
+      return new Response(JSON.stringify({ jsonrpc: "2.0", id: body.id, result:
+        body.method === "initialize" ? { protocolVersion: "2025-03-26" } :
+          { tools: [{ name: "search_recordings" }] } }));
+    };
+    const healthy = await getAgentHealth({ refresh: true });
+    assert.equal(healthy.ok, true);
+    assert.equal(healthy.projectConfiguration, "explicit");
+    globalThis.fetch = async () => { throw new Error("offline"); };
+    assert.equal((await getAgentHealth({ refresh: true })).ok, false);
+  } finally { globalThis.fetch = previousFetch; delete process.env.CODEX_BIN; }
 });

@@ -43,13 +43,16 @@ export function createMusicLearningAgent({
       "research-plan",
       [
         "Resolve the exact recording/work/version using MusicBrainz MCP when available. Never silently select among ambiguous versions.",
+        "For MusicBrainz evidence, return its public /ws/2/<entity>/<id>?fmt=json API URLs (with inc parameters if needed), not entity HTML pages that may serve a browser-verification screen. Quote short contiguous JSON field fragments from the actual API response.",
+        "This phase collects sources; the server assigns evidenceIds afterward. Missing evidenceIds here are expected, never report them as an unknown. Unknowns concern music, version scope and source availability only; omit internal workflow commentary.",
         "Search and READ song-specific sources. Return at most 8 public HTML/JSON/text source URLs with up to 6 short verbatim excerpts each (12-600 characters).",
         "PDF, paywall, search snippets and inaccessible pages cannot be used by this reader. Find an accessible primary alternative or leave unknown.",
         "Each excerpt has a topic and locator (heading, paragraph or JSON path). MusicBrainz evidence is identity-only.",
         "versionScope must be identical across a source and any intended recording-specific claim. Use general for general theory.",
         "A version is unresolved if identifying evidence is missing. Candidate id/recordingId must be actual source identifiers, not invented.",
         "For a deep dive, research only the selected item/question and reuse readable existing sources.",
-        "DATA:\n" + serialize(context),
+        "registeredSources already contain server-read, verified excerpts. Do not repeat the full identity/source search for a general-theory question; retain the supplied version scope and unknowns. Propose new sources only when the question requires new factual evidence.",
+        "DATA:\n" + serialize({ ...context, registeredSources: existing }),
       ].join("\n"),
       signal,
     );
@@ -224,12 +227,31 @@ export function createMusicLearningAgent({
       "INVALID_REQUEST",
       400,
     );
+    const previous = stored.deepDives
+      .filter((value) => value.deepDive.analysisItemId === id).slice(-2);
+    const last = previous.at(-1);
+    const session = stored.studioSessions.find(
+      (value) => value.deepDiveId === last?.deepDiveId,
+    )?.session;
+    const followupContext = {
+      previousDeepDives: previous.map((value) => ({
+        question: value.question,
+        title: value.deepDive.title,
+        claims: value.deepDive.claims,
+        studio: value.deepDive.studio,
+      })),
+      currentExperiment: session ? {
+        experiment: session.experiment,
+        revision: session.revisions[session.revisionIndex],
+      } : last?.deepDive.studio.seed || null,
+    };
     const evidence = await research(
       {
         song: analysis.song,
         userPerception: analysis.userPerception,
         selectedItem: item || null,
         question,
+        ...followupContext,
       },
       stored.sources,
       signal,
@@ -242,6 +264,7 @@ export function createMusicLearningAgent({
         "Use the same claim kind/status rules as analysis. Confirmed song facts are external_evidence; general teaching has versionScope=general.",
         "A listening cue about the original recording must cite a confirmed claimId. General listening tasks have scope=general.",
         "A teaching experiment can be useful despite missing original-song evidence. Explicitly say it does not establish how the original was made.",
+        "If the question continues a previous experiment, use currentExperiment (including saved user edits) as the baseline. Preserve its sounds, tempo and other parameters unless the question requests changing them. A new independent question need not reuse that experiment. Previous teaching code is not evidence of the original recording.",
         "If useful, supply a SMALL A/B Strudel experiment changing ONE variable, with constants, listening goals, and limitation. Default sourceType=learning_reconstruction.",
         "Use known built-in synths for harmony, and default bd/sd/hh only for drums. No custom sample URLs, imports or JavaScript side effects.",
         "Do not include global tempo commands in code. playback.bpm and beatsPerCycle define tempo; use soundBank=default and runtimeVersion=unbound until runtime integration.",
@@ -253,6 +276,7 @@ export function createMusicLearningAgent({
             userPerception: analysis.userPerception,
             selectedItem: item || null,
             question,
+            ...followupContext,
             sources: evidence.sources,
             unknowns: evidence.unknowns,
           }),

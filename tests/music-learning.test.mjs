@@ -260,6 +260,58 @@ function queuedAgent(outputs, sources = [source]) {
     register: async () => ({ sources: structuredClone(sources), unknowns: [] }),
   });
 }
+test("follow-up research receives the server-owned source snapshot for reuse", async () => {
+  const stored = await persistAnalysis(analysisFixture());
+  const draft = diveFixture("rhythm");
+  delete draft.sources;
+  const outputs = [
+    { song, sources: [], questions: [], unknowns: [] },
+    draft, reviewFixture(draft.claims),
+  ];
+  let researchData;
+  const agent = createMusicLearningAgent({
+    run: async ({ prompt, outputSchema }) => {
+      if (outputSchema.endsWith("research-plan.schema.json"))
+        researchData = JSON.parse(prompt.split("DATA:\n").at(-1));
+      return structuredClone(outputs.shift());
+    },
+    register: async (_proposals, { existing }) => ({ sources: existing, unknowns: [] }),
+  });
+  const result = await agent.deepDive({ analysisId: stored.analysisId, analysisItemId: "rhythm" });
+  assert.deepEqual(researchData.registeredSources, stored.analysis.sources);
+  assert.equal(researchData.selectedItem.id, "rhythm");
+  assert.deepEqual(result.deepDive.sources, stored.analysis.sources);
+});
+test("follow-up explanation receives saved user edits, never a client experiment override", async () => {
+  const a = await persistAnalysis(analysisFixture());
+  const d = await persistDeepDive(a.analysisId, diveFixture("rhythm"), "first question");
+  const initial = studio.createStudioSession("rhythm", d.deepDive.studio.seed);
+  const edited = studio.applyStudioProposal(initial, studio.proposeStudioChange(
+    initial, 's("hh*8")', { ...initial.revisions[0].playback, bpm: 144 }, "user edit",
+  ));
+  await persistStudioSession(a.analysisId, d.deepDiveId, edited);
+  const draft = diveFixture("rhythm");
+  delete draft.sources;
+  const queue = [{ song, sources: [], questions: [], unknowns: [] }, draft, reviewFixture(draft.claims)];
+  const contexts = [];
+  const agent = createMusicLearningAgent({
+    run: async ({ prompt, outputSchema }) => {
+      if (!outputSchema.endsWith("evidence-review.schema.json"))
+        contexts.push(JSON.parse(prompt.split("DATA:\n").at(-1)));
+      return structuredClone(queue.shift());
+    },
+    register: async (_proposals, { existing }) => ({ sources: existing, unknowns: [] }),
+  });
+  await agent.deepDive({ analysisId: a.analysisId, analysisItemId: "rhythm", question: "continue",
+    currentExperiment: { revision: { code: "untrusted", playback: { bpm: 20 } } },
+  });
+  for (const context of contexts) {
+    assert.equal(context.currentExperiment.revision.code, 's("hh*8")');
+    assert.equal(context.currentExperiment.revision.playback.bpm, 144);
+    assert.equal(context.previousDeepDives[0].question, "first question");
+  }
+  assert.equal(contexts.length, 2);
+});
 test("unsupported claims are removed before presentation; empty analysis still supports a general teaching deep dive", async () => {
   const analysis = analysisFixture(),
     { sources: _sources, ...draft } = analysis;

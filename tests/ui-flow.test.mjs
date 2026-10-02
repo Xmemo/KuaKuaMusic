@@ -28,7 +28,7 @@ async function until(check) {
   }
   throw new Error("UI state did not settle");
 }
-function harness({ empty = false } = {}) {
+function harness({ empty = false, songs = [{ title: "测试歌曲", artist: "测试艺人" }] } = {}) {
   const errors = [],
     console = new VirtualConsole();
   console.on("jsdomError", (e) => errors.push(e.message));
@@ -53,7 +53,7 @@ function harness({ empty = false } = {}) {
     if (url.pathname === "/api/agent/session") value = { token: "synthetic" };
     else if (url.pathname === "/api/agent/health") value = { ok: true };
     else if (url.pathname === "/api/music/search")
-      value = { songs: [{ title: "测试歌曲", artist: "测试艺人" }] };
+      value = { songs };
     else if (url.pathname === "/api/agent/analyses")
       value = pkg
         ? [
@@ -159,6 +159,26 @@ async function selectSong(ui) {
   ui.document.querySelector(".song-choice").click();
   await until(() => ui.document.querySelector(".overview"));
 }
+test("DOM search exposes all returned candidates beyond the first page", async () => {
+  const songs = Array.from({ length: 50 }, (_, index) => ({
+    id: String(index), title: "测试歌曲 " + index, artist: "测试艺人",
+  }));
+  const ui = harness({ songs });
+  try {
+    await until(() => ui.document.getElementById("song-query"));
+    ui.fill("song-query", "测试艺人");
+    await until(() => !ui.button("搜索歌曲").disabled);
+    ui.button("搜索歌曲").click();
+    await until(() => ui.document.querySelectorAll(".song-choice").length === 24);
+    ui.button("显示更多歌曲").click();
+    await until(() => ui.document.querySelectorAll(".song-choice").length === 48);
+    ui.button("显示更多歌曲").click();
+    await until(() => ui.document.querySelectorAll(".song-choice").length === 50);
+    assert.equal(ui.button("显示更多歌曲"), undefined);
+    assert.match(ui.document.body.textContent, /找到 50 个候选/);
+    assert.deepEqual(ui.errors, []);
+  } finally { ui.dom.window.close(); }
+});
 test("DOM flow: selected-item deep dive, manual preview protection, saved tempo restoration, and AI cannot overwrite a new draft", async () => {
   const ui = harness();
   try {

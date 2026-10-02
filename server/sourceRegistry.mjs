@@ -1,37 +1,15 @@
 import crypto from "node:crypto";
 import http from "node:http";
 import https from "node:https";
-import dns from "node:dns/promises";
-import net from "node:net";
 import { load } from "cheerio";
 import { AppError } from "./errors.mjs";
+import { resolvePublicAddresses } from "./publicDns.mjs";
+export { isPublicAddress } from "./publicDns.mjs";
 
 export const normalizeEvidenceText = (value) =>
   String(value).normalize("NFKC").replace(/\s+/gu, " ").trim();
 const digest = (value) =>
   crypto.createHash("sha256").update(value).digest("hex");
-export function isPublicAddress(address) {
-  const family = net.isIP(address);
-  if (family === 6)
-    return (
-      /^[23][0-9a-f]{3}:/i.test(address) &&
-      !/^(?:2001:db8:|2002:)/i.test(address)
-    );
-  if (family !== 4) return false;
-  const [a, b, c] = address.split(".").map(Number);
-  return !(
-    a === 0 ||
-    a === 10 ||
-    a === 127 ||
-    a >= 224 ||
-    (a === 169 && b === 254) ||
-    (a === 172 && b >= 16 && b <= 31) ||
-    (a === 192 && (b === 168 || b === 0 || (b === 0 && c === 2))) ||
-    (a === 100 && b >= 64 && b <= 127) ||
-    (a === 198 && (b === 18 || b === 19 || b === 51)) ||
-    (a === 203 && b === 0 && c === 113)
-  );
-}
 function sourceUrl(value) {
   const url = new URL(value);
   if (
@@ -74,11 +52,7 @@ export async function readPublicSource(value, { signal, redirects = 0 } = {}) {
   if (redirects > 3) throw new Error("Too many redirects");
   const url = sourceUrl(value),
     host = url.hostname.replace(/^\[|\]$/g, "");
-  const addresses = net.isIP(host)
-    ? [{ address: host, family: net.isIP(host) }]
-    : await dns.lookup(host, { all: true });
-  if (!addresses.length || addresses.some((x) => !isPublicAddress(x.address)))
-    throw new AppError("来源解析到了非公开网络。", "UNSAFE_SOURCE", 422);
+  const addresses = await resolvePublicAddresses(host, { signal });
   await respectMetadataRate(url, signal);
   // Pin the validated address to this request; do not re-resolve on connection.
   const result = await new Promise((resolve, reject) => {

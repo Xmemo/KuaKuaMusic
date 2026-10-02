@@ -32,6 +32,7 @@ function MusicLearningApp() {
     [perception, setPerception] = useState("");
   const [matches, setMatches] = useState<SongMetadata[]>([]),
     [selected, setSelected] = useState<SongMetadata | null>(null);
+  const [visibleMatches, setVisibleMatches] = useState(24);
   const [stored, setStored] = useState<StoredAnalysis | null>(null),
     [savedPackage, setSavedPackage] = useState<EvidencePackage | null>(null);
   const [dive, setDive] = useState<StoredDeepDive | null>(null),
@@ -78,6 +79,7 @@ function MusicLearningApp() {
     setError("");
     try {
       setMatches(await searchSongs(query));
+      setVisibleMatches(24);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -205,7 +207,7 @@ function MusicLearningApp() {
         ) : null}
         {health && !health.ok ? (
           <p className="notice" role="status">
-            研究服务尚未就绪。请确认 Codex 已登录，并在受信任的项目中加载配置。
+            研究服务尚未就绪。请确认 Codex 已登录，并能连接 MusicBrainz 服务。
           </p>
         ) : null}
         <form className="panel input-panel" onSubmit={search}>
@@ -247,8 +249,12 @@ function MusicLearningApp() {
         {matches.length ? (
           <section className="panel">
             <h2>选择要研究的歌曲</h2>
+            <p className="muted">
+              找到 {matches.length} 个候选，当前显示 {Math.min(visibleMatches, matches.length)} 个。
+              结果来自可访问的平台资料和 iTunes 曲库，可能不包含全部作品。
+            </p>
             <div className="song-grid">
-              {matches.slice(0, 24).map((song, index) => (
+              {matches.slice(0, visibleMatches).map((song, index) => (
                 <button
                   className="song-choice"
                   key={(song.id || song.title) + index}
@@ -261,6 +267,11 @@ function MusicLearningApp() {
                 </button>
               ))}
             </div>
+            {visibleMatches < matches.length ? (
+              <button disabled={!!busy} onClick={() => setVisibleMatches((count) => count + 24)}>
+                显示更多歌曲
+              </button>
+            ) : null}
           </section>
         ) : null}
         {analysis && stored ? (

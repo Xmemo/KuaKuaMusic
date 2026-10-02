@@ -3,6 +3,7 @@ import { StringDecoder } from "node:string_decoder";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { AppError } from "./errors.mjs";
+import { researchConfigArgs } from "./researchConfig.mjs";
 const REPO_ROOT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "..",
@@ -153,10 +154,7 @@ export async function runCodexStructured({ prompt, outputSchema, signal }) {
     "--ephemeral",
     "--sandbox",
     "read-only",
-    "-c",
-    'approval_policy="never"',
-    "-c",
-    'web_search="live"',
+    ...researchConfigArgs(),
     "--output-schema",
     outputSchema,
   ];
@@ -170,7 +168,7 @@ export async function runCodexStructured({ prompt, outputSchema, signal }) {
   });
   if (result.code !== 0)
     throw new AppError(
-      "Codex 研究失败，请检查登录、项目信任状态与 MCP 配置。",
+      "Codex 研究失败，请检查登录、网络与 MCP 服务。",
       "AGENT_FAILED",
       502,
     );
