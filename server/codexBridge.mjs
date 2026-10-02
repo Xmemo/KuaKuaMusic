@@ -1,194 +1,186 @@
 import { spawn } from "node:child_process";
+import { StringDecoder } from "node:string_decoder";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-
-const HERE = path.dirname(fileURLToPath(import.meta.url));
-const REPO_ROOT = path.resolve(HERE, "..");
-
-const DEFAULT_TIMEOUT_MS = 180_000;
-const DEFAULT_MAX_STDOUT_BYTES = 2 * 1024 * 1024;
-const DEFAULT_MAX_STDERR_BYTES = 512 * 1024;
-
-function numericEnv(name, fallback) {
-  const value = Number(process.env[name]);
-  return Number.isFinite(value) && value > 0 ? value : fallback;
-}
-
-export function schemaPath(relativePath) {
-  return path.resolve(REPO_ROOT, relativePath);
-}
-
+import { AppError } from "./errors.mjs";
+const REPO_ROOT = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "..",
+);
+const positive = (name, fallback) =>
+  Number(process.env[name]) > 0 ? Number(process.env[name]) : fallback;
+export const schemaPath = (relative) => path.resolve(REPO_ROOT, relative);
 export function getCodexBridgeConfig() {
   return {
     bin: process.env.CODEX_BIN || "codex",
     model: process.env.CODEX_MODEL || "",
-    timeoutMs: numericEnv("CODEX_TIMEOUT_MS", DEFAULT_TIMEOUT_MS),
-    maxStdoutBytes: numericEnv("CODEX_MAX_STDOUT_BYTES", DEFAULT_MAX_STDOUT_BYTES),
-    maxStderrBytes: numericEnv("CODEX_MAX_STDERR_BYTES", DEFAULT_MAX_STDERR_BYTES),
+    timeoutMs: positive("CODEX_TIMEOUT_MS", 180000),
+    maxStdoutBytes: positive("CODEX_MAX_STDOUT_BYTES", 2 * 1024 * 1024),
+    maxStderrBytes: positive("CODEX_MAX_STDERR_BYTES", 512 * 1024),
     cwd: REPO_ROOT,
   };
 }
-
-export async function checkCodexAvailable() {
+function childEnvironment() {
+  return Object.fromEntries(
+    [
+      "PATH",
+      "HOME",
+      "USERPROFILE",
+      "TMPDIR",
+      "TEMP",
+      "LANG",
+      "LC_ALL",
+      "CODEX_HOME",
+      "CODEX_API_KEY",
+      "OPENAI_API_KEY",
+      "HTTPS_PROXY",
+      "HTTP_PROXY",
+      "NO_PROXY",
+    ]
+      .filter((key) => process.env[key] !== undefined)
+      .map((key) => [key, process.env[key]]),
+  );
+}
+function stopChild(child) {
+  const kill = (signal) => {
+    try {
+      if (process.platform !== "win32" && child.pid)
+        process.kill(-child.pid, signal);
+      else child.kill(signal);
+    } catch {}
+  };
+  kill("SIGTERM");
+  const escalation = setTimeout(() => kill("SIGKILL"), 1000);
+  escalation.unref();
+  child.once("close", () => clearTimeout(escalation));
+}
+export function runCodexCommand(
+  args,
+  { prompt, signal, timeoutMs = 5000, maxBytes = 65536 } = {},
+) {
   const config = getCodexBridgeConfig();
-
-  return new Promise((resolve) => {
-    const child = spawn(config.bin, ["--version"], {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new AppError("请求已取消。", "CANCELLED", 499));
+      return;
+    }
+    const child = spawn(config.bin, args, {
       cwd: config.cwd,
-      env: process.env,
-      stdio: ["ignore", "pipe", "pipe"],
+      env: childEnvironment(),
+      stdio: [prompt ? "pipe" : "ignore", "pipe", "pipe"],
       shell: false,
+      detached: process.platform !== "win32",
     });
-
-    let output = "";
-    let settled = false;
-
-    const finish = (available, version = null) => {
-      if (settled) return;
-      settled = true;
+    const outputDecoder = new StringDecoder("utf8");
+    let stdout = "",
+      stderr = "",
+      stdoutBytes = 0,
+      stderrBytes = 0,
+      done = false;
+    const finish = (error, result) => {
+      if (done) return;
+      done = true;
       clearTimeout(timer);
-      resolve({ available, version });
+      signal?.removeEventListener("abort", abort);
+      error ? reject(error) : resolve(result);
     };
-
+    const abort = () => {
+      stopChild(child);
+      finish(new AppError("请求已取消。", "CANCELLED", 499));
+    };
     const timer = setTimeout(() => {
-      child.kill("SIGTERM");
-      finish(false, null);
-    }, 5000);
-
-    child.on("error", () => finish(false, null));
+      stopChild(child);
+      finish(
+        new AppError("资料研究超时，请缩小问题或重试。", "AGENT_TIMEOUT", 504),
+      );
+    }, timeoutMs);
+    signal?.addEventListener("abort", abort, { once: true });
+    child.on("error", (error) =>
+      finish(
+        new AppError(
+          error.code === "ENOENT"
+            ? "未找到 Codex CLI，请在本机安装并登录。"
+            : "无法启动 Codex CLI。",
+          "CODEX_UNAVAILABLE",
+          503,
+        ),
+      ),
+    );
     child.stdout.on("data", (chunk) => {
-      output += chunk.toString("utf8");
+      if (done) return;
+      stdoutBytes += chunk.length;
+      if (stdoutBytes > maxBytes) {
+        stopChild(child);
+        finish(new AppError("Agent 输出超过上限。", "AGENT_OUTPUT_LIMIT", 502));
+        return;
+      }
+      stdout += outputDecoder.write(chunk);
+    });
+    child.stderr.on("data", (chunk) => {
+      if (done || stderrBytes >= config.maxStderrBytes) return;
+      const kept = chunk.subarray(0, config.maxStderrBytes - stderrBytes);
+      stderrBytes += kept.length;
+      stderr += kept.toString("utf8");
     });
     child.on("close", (code) => {
-      finish(code === 0, code === 0 ? output.trim() || null : null);
+      stdout += outputDecoder.end();
+      finish(null, { code, stdout, stderr });
     });
+    if (prompt) {
+      child.stdin.on("error", () => {});
+      child.stdin.end(prompt);
+    }
   });
 }
-
-export async function runCodexStructured({ prompt, outputSchema }) {
-  if (typeof prompt !== "string" || !prompt.trim()) {
-    throw new Error("Codex prompt is empty.");
+export async function checkCodexAvailable() {
+  try {
+    const result = await runCodexCommand(["--version"]);
+    return {
+      available: result.code === 0,
+      version: result.code === 0 ? result.stdout.trim() : null,
+    };
+  } catch {
+    return { available: false, version: null };
   }
-  if (typeof outputSchema !== "string" || !outputSchema.trim()) {
-    throw new Error("Codex output schema is missing.");
-  }
-
+}
+export async function runCodexStructured({ prompt, outputSchema, signal }) {
+  if (!prompt?.trim() || !outputSchema?.trim())
+    throw new AppError("Agent 请求缺少指令或结构契约。");
   const config = getCodexBridgeConfig();
   const args = [
     "exec",
+    "--ignore-user-config",
     "--ephemeral",
     "--sandbox",
     "read-only",
+    "-c",
+    'approval_policy="never"',
+    "-c",
+    'web_search="live"',
     "--output-schema",
     outputSchema,
   ];
-
-  if (config.model) {
-    args.push("--model", config.model);
-  }
-
-  // "-" tells codex exec to read the prompt from stdin.
+  if (config.model) args.push("--model", config.model);
   args.push("-");
-
-  return new Promise((resolve, reject) => {
-    const child = spawn(config.bin, args, {
-      cwd: config.cwd,
-      env: process.env,
-      stdio: ["pipe", "pipe", "pipe"],
-      shell: false,
-    });
-
-    let stdout = "";
-    let stderr = "";
-    let settled = false;
-    let killedForSize = false;
-    let timer;
-
-    const finishReject = (error) => {
-      if (settled) return;
-      settled = true;
-      if (timer) clearTimeout(timer);
-      reject(error);
-    };
-
-    const finishResolve = (value) => {
-      if (settled) return;
-      settled = true;
-      if (timer) clearTimeout(timer);
-      resolve(value);
-    };
-
-    timer = setTimeout(() => {
-      child.kill("SIGTERM");
-      finishReject(new Error("Codex analysis timed out after " + config.timeoutMs + " ms."));
-    }, config.timeoutMs);
-
-    child.on("error", (error) => {
-      if (error && error.code === "ENOENT") {
-        finishReject(
-          new Error(
-            "Codex CLI was not found. Install/login to Codex CLI or set CODEX_BIN to the executable path.",
-          ),
-        );
-        return;
-      }
-      finishReject(error instanceof Error ? error : new Error(String(error)));
-    });
-
-    child.stdout.on("data", (chunk) => {
-      stdout += chunk.toString("utf8");
-      if (Buffer.byteLength(stdout, "utf8") > config.maxStdoutBytes) {
-        killedForSize = true;
-        child.kill("SIGTERM");
-      }
-    });
-
-    child.stderr.on("data", (chunk) => {
-      if (Buffer.byteLength(stderr, "utf8") < config.maxStderrBytes) {
-        stderr += chunk.toString("utf8");
-      }
-    });
-
-    child.on("close", (code, signal) => {
-      if (killedForSize) {
-        finishReject(new Error("Codex output exceeded the configured size limit."));
-        return;
-      }
-      if (settled) return;
-
-      if (code !== 0) {
-        const details = stderr.trim().slice(-4000);
-        finishReject(
-          new Error(
-            "Codex exited with " + String(code) +
-              (signal ? " (" + signal + ")" : "") +
-              (details ? ": " + details : ""),
-          ),
-        );
-        return;
-      }
-
-      const raw = stdout.trim();
-      if (!raw) {
-        finishReject(new Error("Codex returned an empty structured response."));
-        return;
-      }
-
-      try {
-        finishResolve(JSON.parse(raw));
-      } catch (error) {
-        finishReject(
-          new Error(
-            "Codex returned invalid JSON despite the output schema: " +
-              (error instanceof Error ? error.message : String(error)),
-          ),
-        );
-      }
-    });
-
-    child.stdin.on("error", () => {
-      // The child may close stdin during shutdown; close handling reports the real outcome.
-    });
-    child.stdin.end(prompt);
+  const result = await runCodexCommand(args, {
+    prompt,
+    signal,
+    timeoutMs: config.timeoutMs,
+    maxBytes: config.maxStdoutBytes,
   });
+  if (result.code !== 0)
+    throw new AppError(
+      "Codex 研究失败，请检查登录、项目信任状态与 MCP 配置。",
+      "AGENT_FAILED",
+      502,
+    );
+  try {
+    return JSON.parse(result.stdout.trim());
+  } catch {
+    throw new AppError(
+      "Codex 未返回有效的结构化数据。",
+      "AGENT_INVALID_JSON",
+      502,
+    );
+  }
 }

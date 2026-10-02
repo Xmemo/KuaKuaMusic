@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "MusicLearning2026 DeepDive v1.1",
+  "title": "MusicLearning2026 deep dive draft",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -11,8 +11,7 @@
     "conflicts",
     "unknowns",
     "listeningCues",
-    "studio",
-    "sources"
+    "studio"
   ],
   "properties": {
     "analysisItemId": {
@@ -123,12 +122,6 @@
             }
           ]
         }
-      }
-    },
-    "sources": {
-      "type": "array",
-      "items": {
-        "$ref": "#/$defs/source"
       }
     }
   },

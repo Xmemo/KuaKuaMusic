@@ -28,7 +28,7 @@ Help the user understand a specific recording with verifiable evidence, then tur
 - Overall 走心 / 上头 / 懂行 variants are allowed only for the whole-song impression.
 - Structured modules use one clear evidence-oriented style.
 - Omit unsupported/empty modules rather than filling a template.
-- Every supported song-specific claim must map to source IDs.
+- Every supported song-specific claim must map to registered excerpt evidenceIds, with matching topic and version scope.
 - State version scope and conflicts.
 - Keep source facts distinct from the Agent's interpretation.
 
@@ -74,3 +74,6 @@ Never claim a learning reconstruction is the original song.
 ## Repository changes
 
 The current architecture deliberately does not bundle @strudel packages until the AGPL licensing decision is explicit. Keep Strudel runtime integration behind an adapter boundary.
+
+
+Implementation contracts are defined in music-learning/contracts.mjs; regenerate schemas with npm run schemas:generate. Consult docs/TECHNICAL_ARCHITECTURE_V1.1.md for current API and persistence boundaries. Preserve independent analysis snapshots and every deep-dive turn. Never trust a client-supplied analysis or provenance label.

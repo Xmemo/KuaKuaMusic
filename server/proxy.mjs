@@ -1,71 +1,139 @@
 import express from "express";
-import cors from "cors";
 import dotenv from "dotenv";
+import { pathToFileURL } from "node:url";
 import agnesHandler from "../api/agnes/chat.js";
 import musicSearchHandler from "../api/music/search.js";
-import { checkCodexAvailable } from "./codexBridge.mjs";
-import { analyzeSongWithAgent, deepDiveWithAgent } from "./musicLearningAgent.mjs";
-
-dotenv.config({ path: ".env.local" });
-dotenv.config();
-
-const app = express();
-const PORT = Number(process.env.PROXY_PORT || process.env.PORT || 8787);
-
-app.use(cors({ origin: true }));
-app.use(express.json({ limit: "512kb" }));
-
-app.get("/health", async (_req, res) => {
-  const codex = await checkCodexAvailable();
-  res.json({
-    ok: true,
-    legacyAgnesConfigured: Boolean(process.env.AGNES_API_KEY),
-    codexAvailable: codex.available,
-    codexVersion: codex.version,
+import { getAgentHealth } from "./agentHealth.mjs";
+import {
+  analyzeSongWithAgent,
+  deepDiveWithAgent,
+  proposeStudioWithAgent,
+} from "./musicLearningAgent.mjs";
+import {
+  listAnalyses,
+  loadEvidencePackage,
+  persistStudioSession,
+} from "./evidenceStore.mjs";
+import { createLocalSecurity } from "./localSecurity.mjs";
+import { AppError } from "./errors.mjs";
+dotenv.config({ path: ".env.local", quiet: true });
+dotenv.config({ quiet: true });
+export function createApp({
+  analyze = analyzeSongWithAgent,
+  deepDive = deepDiveWithAgent,
+  proposeStudio = proposeStudioWithAgent,
+  health = getAgentHealth,
+  port = Number(process.env.PROXY_PORT || process.env.PORT || 8787),
+  webPort = Number(process.env.WEB_PORT || 3000),
+} = {}) {
+  const app = express(),
+    security = createLocalSecurity({ apiPort: port, webPort });
+  app.disable("x-powered-by");
+  app.use(security.boundary);
+  app.use(express.json({ limit: "128kb" }));
+  app.get("/health", (_req, res) =>
+    res.json({ ok: true, mode: "local", schemaVersion: "1.1" }),
+  );
+  app.get("/api/agent/session", (_req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    res.json({ token: security.token });
   });
-});
-
-app.get("/api/agent/health", async (_req, res) => {
-  const codex = await checkCodexAvailable();
-  res.status(200).json({
-    ok: codex.available,
-    codexAvailable: codex.available,
-    codexVersion: codex.version,
-    musicBrainzConfigured: true,
+  app.use("/api/agent", security.authorize, (_req, res, next) => {
+    res.setHeader("Cache-Control", "no-store");
+    next();
   });
-});
-
-app.post("/api/agent/analyze", async (req, res) => {
-  try {
-    const analysis = await analyzeSongWithAgent(req.body);
-    res.status(200).json(analysis);
-  } catch (error) {
-    console.error("[music-learning/analyze]", error);
-    res.status(502).json({
-      error: error instanceof Error ? error.message : "MusicLearning analysis failed.",
-      code: "MUSIC_LEARNING_ANALYSIS_FAILED",
+  const route = (fn) => async (req, res, next) => {
+    try {
+      await fn(req, res);
+    } catch (e) {
+      next(e);
+    }
+  };
+  app.get(
+    "/api/agent/health",
+    route(async (_req, res) => res.json(await health())),
+  );
+  app.get(
+    "/api/agent/analyses",
+    route(async (_req, res) => res.json(await listAnalyses())),
+  );
+  app.get(
+    "/api/agent/analyses/:analysisId",
+    route(async (req, res) =>
+      res.json(await loadEvidencePackage(req.params.analysisId)),
+    ),
+  );
+  app.post(
+    "/api/agent/analyses/:analysisId/deep-dives/:deepDiveId/studio",
+    route(async (req, res) => {
+      res.json(
+        await persistStudioSession(
+          req.params.analysisId,
+          req.params.deepDiveId,
+          req.body.session,
+        ),
+      );
+    }),
+  );
+  let active = false;
+  const researchRoute = (operation) =>
+    route(async (req, res) => {
+      if (active)
+        throw new AppError(
+          "已有研究正在进行，请等待或取消后重试。",
+          "AGENT_BUSY",
+          409,
+        );
+      active = true;
+      const controller = new AbortController();
+      const disconnect = () => {
+        if (!res.writableEnded) controller.abort();
+      };
+      res.once("close", disconnect);
+      try {
+        const result = await operation(req.body, { signal: controller.signal });
+        if (!controller.signal.aborted) res.json(result);
+      } finally {
+        active = false;
+        res.removeListener("close", disconnect);
+      }
     });
-  }
-});
-
-app.post("/api/agent/deep-dive", async (req, res) => {
-  try {
-    const deepDive = await deepDiveWithAgent(req.body);
-    res.status(200).json(deepDive);
-  } catch (error) {
-    console.error("[music-learning/deep-dive]", error);
-    res.status(502).json({
-      error: error instanceof Error ? error.message : "MusicLearning deep dive failed.",
-      code: "MUSIC_LEARNING_DEEP_DIVE_FAILED",
-    });
-  }
-});
-
-// Transitional compatibility paths. The frozen MusicLearning2026 architecture
-// uses /api/agent/*; Agnes remains only until the current UI is migrated.
-app.all("/api/agnes/chat", agnesHandler);
-app.all("/api/music/search", musicSearchHandler);
-
-app.listen(PORT, () => {
-  console.log("[proxy] KuaKuaMusic local API listening on http://127.0.0.1:" + PORT);
-});
+  app.post("/api/agent/analyze", researchRoute(analyze));
+  app.post("/api/agent/deep-dive", researchRoute(deepDive));
+  app.post("/api/agent/studio/propose", researchRoute(proposeStudio));
+  app.all("/api/music/search", musicSearchHandler);
+  if (process.env.MUSIC_LEARNING_ENABLE_LEGACY === "1")
+    app.all("/api/agnes/chat", agnesHandler);
+  app.use((error, _req, res, _next) => {
+    if (res.headersSent || res.destroyed) return;
+    const known = error instanceof AppError;
+    const invalidBody =
+      error.type === "entity.too.large" || error.type === "entity.parse.failed";
+    res
+      .status(known ? error.status : invalidBody ? 400 : 500)
+      .json({
+        code: known
+          ? error.code
+          : invalidBody
+            ? "INVALID_REQUEST"
+            : "INTERNAL_ERROR",
+        error: known
+          ? error.message
+          : invalidBody
+            ? "请求内容无效或过大。"
+            : "本机服务未能完成请求，请稍后重试。",
+      });
+    if (!known && !invalidBody)
+      console.error("[music-learning]", error.name || "Error");
+  });
+  return app;
+}
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(process.argv[1]).href
+) {
+  const port = Number(process.env.PROXY_PORT || process.env.PORT || 8787);
+  createApp({ port }).listen(port, "127.0.0.1", () =>
+    console.log("[MusicLearning] http://127.0.0.1:" + port),
+  );
+}

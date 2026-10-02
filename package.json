@@ -11,9 +11,14 @@
     "start": "node server/proxy.mjs",
     "preview": "vite preview",
     "start:api": "node server/proxy.mjs",
-    "test": "node --test"
+    "test": "node --test",
+    "typecheck": "tsc --noEmit",
+    "schemas:generate": "node scripts/generate-schemas.mjs",
+    "verify": "npm run typecheck && npm test && npm run build"
   },
   "dependencies": {
+    "ajv": "^8.20.0",
+    "cheerio": "^1.2.0",
     "cors": "^2.8.5",
     "dotenv": "^16.6.1",
     "express": "^4.21.2",
@@ -22,12 +27,19 @@
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^5.0.0",
     "autoprefixer": "^10.4.20",
     "concurrently": "^9.2.1",
+    "esbuild": "^0.25.12",
+    "jsdom": "^26.1.0",
     "postcss": "^8.5.6",
     "tailwindcss": "^3.4.17",
     "typescript": "~5.8.2",
     "vite": "^6.2.0"
+  },
+  "engines": {
+    "node": ">=22"
   }
 }

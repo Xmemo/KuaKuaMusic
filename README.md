@@ -1,171 +1,67 @@
 # 夸夸音乐 / MusicLearning2026
 
-当前产品方向已经冻结为：
+**输入歌曲 → 有依据的结构化分析 → 选择一个分析点深入了解 → Strudel Studio 实验。**
 
-> **输入歌曲 → 有依据的结构化分析 → 选择一个分析点深入了解 → Strudel Studio 动手实验**
+产品基线仍是 [PRD v0.3 冻结版](docs/MUSICLEARNING2026_PRD_V0.3_FROZEN.md)。本轮实现和验收范围见 [技术架构 v1.1](docs/TECHNICAL_ARCHITECTURE_V1.1.md)。
 
-完整产品定义见：
+默认页面已使用新架构：动态分析模块、具体问题深挖、来源片段、研究历史、Studio A/B 修改预览和保存。走心 / 上头 / 懂行只用于整首歌总体观感。
 
-- `docs/MUSICLEARNING2026_PRD_V0.3_FROZEN.md`
-- `docs/TECHNICAL_ARCHITECTURE_V1.md`
+## 本机运行
 
-## 核心原则
-
-- 用户第一次看到的正式歌曲分析就必须已经经过资料核验。
-- 没有歌曲专属依据的判断，不为了填满模块而硬写。
-- 走心 / 上头 / 懂行只用于**整首歌总体观感**；结构化模块统一使用证据化表达。
-- 产品只有一个 AI Agent。搜索、MusicBrainz MCP、网页研究、核验和解释都是它的内部工具调用。
-- Studio 已从 MIDI/piano-roll-first 改为 **Strudel-first**：代码是主要实验对象，视觉提示优先复用 Strudel 原生 visual feedback。
-- source_transcription、learning_reconstruction、user_version 必须严格区分。
-
-## 当前仓库状态
-
-仓库仍保留旧版夸夸音乐 UI 和 Agnes 调用路径，便于不中断现有页面。
-
-新的 MusicLearning2026 架构已经提供：
-
-- 项目级 Codex 配置；
-- MusicBrainz MCP；
-- Evidence-first Agent 规则；
-- schema-constrained Song Analysis；
-- schema-constrained Deep Dive；
-- 本地 Evidence Package；
-- Strudel Studio adapter / revision contract；
-- React 前端 API client；
-- Express 本机 Agent endpoints。
-
-UI 会按 Analysis → Deep Dive → Studio 的顺序迁移到新 contract。
-
-## 本地运行
-
-### 1. 前端依赖
-
-需要 Node.js 18 或更高版本。
+需要 **Node.js 22+**，以及已经安装并登录的 Codex CLI。
 
 ```bash
-npm install
+npm ci
 cp .env.example .env.local
-```
-
-### 2. Codex CLI
-
-MusicLearning2026 的 canonical Agent path 使用本机 Codex CLI。
-
-先确认：
-
-```bash
 codex --version
 codex login status
-```
-
-Codex 只会在受信任项目中加载项目级 `.codex/config.toml`。本仓库已配置 MusicBrainz MCP：
-
-```toml
-[mcp_servers.musicbrainz]
-url = "https://musicbrainz.caseyjhand.com/mcp"
-```
-
-可以用：
-
-```bash
-codex mcp list
-```
-
-确认 MusicBrainz 已被加载。
-
-### 3. 启动
-
-```bash
+codex --ignore-user-config mcp list --json
 npm run dev
 ```
 
-Vite 会把本地 `/api` 请求代理到端口 8787。
+打开 `http://127.0.0.1:3000`。前端和 API 仅绑定本机回环地址。Codex 需要信任本项目，才能加载 `.codex/config.toml` 中的 MusicBrainz MCP。Bridge 忽略用户级配置，保留本机登录凭据和受信任项目配置。
 
-## Canonical local APIs
+网页研究、资料读取和逐条审核可能需要数分钟，可取消。资料少时不会硬填歌曲事实；可以继续提出具体问题，使用明确标注的通用理论与教学实验。
 
-### Health
+## 当前可用范围
 
-```
-GET /api/agent/health
-```
+- 服务端读取公开 HTML / JSON / 纯文本，登记在原文中找到的片段和内容哈希；不可读取的资料保留为未知。
+- 身份、判断和观感进行 Agent 内部审核；结构、来源归属、引用存在性、主题范围和版本一致性由服务端校验。
+- 每次分析得到独立 `analysisId`。深挖追加历史，来源累计合并，Studio 保存代码、速度、循环拍数与来源类型。
+- Studio 支持 A/B 预览、手动编辑、AI 建议、应用、撤销、重做、保存与 Strudel 代码导出。
+- **内置播放和动态 Strudel visual feedback 尚未接入**：遵循项目的许可决策门槛，未安装 `@strudel/*`。可将导出代码粘贴至 [Strudel 编辑器](https://strudel.cc/) 试听；导出会带上当前版本的速度设置。
 
-### Evidence-backed song analysis
+“片段在资料中存在”不等于“判断必然正确”。语义审核由模型执行，可能误判；来源、片段、审核记录与未知部分一起保存，便于复查。V1 没有音频输入，不声称已听取或测量原曲。
 
-```
-POST /api/agent/analyze
-```
+## 本机 API
 
-Body:
+先 `GET /api/agent/session` 获取当前服务的会话 token；后续 `/api/agent/*` 请求携带 `X-Music-Learning-Token`。接口拒绝外部 Origin 和不匹配的 Host。
 
-```json
-{
-  "song": {
-    "title": "Song",
-    "artist": "Artist",
-    "album": "Album",
-    "releaseYear": "2020"
-  },
-  "userPerception": "副歌为什么突然感觉变宽？"
-}
-```
+| 接口 | 用途 |
+| --- | --- |
+| `GET /api/agent/health` | CLI、登录、项目配置及 MCP 初始化/工具列表检查 |
+| `POST /api/agent/analyze` | `{song, userPerception?}` → 保存后的分析 |
+| `POST /api/agent/deep-dive` | `{analysisId, analysisItemId, question?}` → 保存后的深挖 |
+| `GET /api/agent/analyses` | 研究历史 |
+| `GET /api/agent/analyses/:analysisId` | 完整 Evidence Package |
+| `POST /api/agent/analyses/:analysisId/deep-dives/:deepDiveId/studio` | `{session}` → 保存实验 |
+| `POST /api/agent/studio/propose` | `{analysisId, deepDiveId, sessionId, baseRevisionId, question}` → 建议，不自动应用 |
 
-The server invokes `codex exec` with `schemas/song-analysis.schema.json`.
+深挖不接受客户端提交的完整分析对象。没有模块时，使用 `analysisItemId: "question"` 并填写具体问题。
 
-### Deep dive
+## 保存与验证
 
-```
-POST /api/agent/deep-dive
-```
+默认记录位置为 `.music-learning/evidence/<analysisId>/package.json`，不提交 Git。`MUSIC_LEARNING_PERSIST=0` 使用临时内存保存；页面会提示重启后丢失。可用 `MUSIC_LEARNING_EVIDENCE_DIR` 指定位置。旧版按歌曲键保存的文件仍保留，本轮没有自动迁移或删除；新历史列表只读取 v1.1 的 UUID 记录。
 
-Body contains the current SongAnalysis, the selected `analysisItemId`, and an optional user question.
-
-The server invokes `codex exec` with `schemas/deep-dive.schema.json`.
-
-## Evidence persistence
-
-By default, local results are written under:
-
-```
-.music-learning/evidence/
+```bash
+npm run schemas:generate  # 修改 contracts.mjs 后更新生成的 Schema
+npm run verify            # TypeScript、Node 回归测试、生产构建
 ```
 
-This directory is gitignored.
+测试使用明确标注的合成案例，验证结构、证据边界、不可覆盖的分析快照、累计来源、并发写入、回环保护、取消、CLI 超时和 Studio 版本恢复。它们不替代用户 Mac 上真实 Codex + MusicBrainz + 网页研究的验收。
 
-Set `MUSIC_LEARNING_PERSIST=0` to disable persistence, or `MUSIC_LEARNING_EVIDENCE_DIR` to choose another location.
+## 兼容与部署
 
-## Song search
+歌曲搜索仍由 `/api/music/search` 提供。旧 UI 和 Agnes 本机 API 默认关闭；确有兼容需求时分别设置 `VITE_ENABLE_LEGACY_UI=1`、`MUSIC_LEARNING_ENABLE_LEGACY=1`，再访问 `/?legacy=1`。
 
-The existing catalog search remains a discovery layer:
-
-- input title / artist;
-- paste supported public song links;
-- show candidates;
-- select a candidate before analysis.
-
-The catalog result itself is **not** treated as proof for music-analysis claims. The Agent resolves identity/version again through the evidence workflow.
-
-## Strudel Studio
-
-The Studio contract lives in:
-
-- `studio/README.md`
-- `studio/strudelStudio.ts`
-
-The product decision is Strudel-first, but this architecture PR deliberately does **not** add `@strudel/*` to `package.json`.
-
-Reason: current Strudel packages are AGPL-licensed. The repository/distribution licensing decision must be explicit before bundling them. The adapter boundary lets the rest of the product ship independently of that decision.
-
-## Transitional legacy API
-
-These paths remain temporarily because the current UI still uses them:
-
-- `GET /api/music/search?q=...`
-- `POST /api/agnes/chat`
-
-They are not the canonical MusicLearning2026 Agent architecture and should be removed after the UI migration.
-
-## Vercel note
-
-The existing Agnes-backed path can still run in the current Vercel-style deployment.
-
-The new `/api/agent/*` path is **local-first** because it requires a local Codex executable, project MCP configuration, and local evidence storage. Do not assume the Vercel runtime provides Codex CLI.
+新架构使用本机 Codex 和本地记录。Vercel 可验证前端构建和部署，不能代替本机 Agent 运行环境。公开部署的访问者会看到本机服务连接提示；本轮不把本机接口暴露到公网。

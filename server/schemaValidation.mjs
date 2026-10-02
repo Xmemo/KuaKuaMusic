@@ -1,0 +1,29 @@
+import Ajv2020 from "ajv/dist/2020.js";
+import { contracts } from "../music-learning/contracts.mjs";
+import { AppError } from "./errors.mjs";
+const ajv = new Ajv2020({
+  allErrors: true,
+  strict: true,
+  allowUnionTypes: true,
+});
+const validators = Object.fromEntries(
+  Object.entries(contracts).map(([name, schema]) => [
+    name,
+    ajv.compile(schema),
+  ]),
+);
+export function validateContract(name, value) {
+  const validate = validators[name];
+  if (!validate || !validate(value)) {
+    const details = validate?.errors
+      ?.slice(0, 3)
+      .map((e) => (e.instancePath || "/") + " " + e.message)
+      .join("; ");
+    throw new AppError(
+      "返回数据不符合 " + name + " 契约。" + (details || ""),
+      "INVALID_CONTRACT",
+      422,
+    );
+  }
+  return value;
+}

@@ -1,125 +1,201 @@
-function assert(condition, message) {
-  if (!condition) throw new Error("Evidence integrity error: " + message);
-}
+import { validateContract } from "./schemaValidation.mjs";
+import { invariant } from "./errors.mjs";
 
-function nonEmptyText(value) {
-  return typeof value === "string" && value.trim().length > 0;
-}
-
-function collectSources(sources, label) {
-  assert(Array.isArray(sources), label + " must be an array.");
-  const map = new Map();
+export function evidenceIndex(sources) {
+  const sourceMap = new Map(),
+    excerpts = new Map();
   for (const source of sources) {
-    assert(source && typeof source === "object", label + " contains an invalid source.");
-    assert(nonEmptyText(source.id), label + " source.id is required.");
-    assert(!map.has(source.id), label + " contains duplicate source id: " + source.id);
-    map.set(source.id, source);
+    invariant(!sourceMap.has(source.id), "来源 ID 重复。");
+    sourceMap.set(source.id, source);
+    for (const excerpt of source.excerpts) {
+      invariant(!excerpts.has(excerpt.id), "支撑片段 ID 重复。");
+      excerpts.set(excerpt.id, { ...excerpt, source });
+    }
   }
-  return map;
+  return { sourceMap, excerpts };
 }
-
-export function validateSongAnalysisIntegrity(analysis) {
-  assert(analysis && typeof analysis === "object", "analysis must be an object.");
-  const sourceMap = collectSources(analysis.sources, "analysis.sources");
-  assert(Array.isArray(analysis.modules), "analysis.modules must be an array.");
-
-  const moduleIds = new Set();
-  const claimIds = new Set();
-
-  for (const module of analysis.modules) {
-    assert(nonEmptyText(module?.id), "analysis module id is required.");
-    assert(!moduleIds.has(module.id), "duplicate module id: " + module.id);
-    moduleIds.add(module.id);
-
-    assert(Array.isArray(module.claims), "module.claims must be an array for " + module.id);
-    assert(module.claims.length > 0, "module must contain at least one claim: " + module.id);
-
-    for (const claim of module.claims) {
-      assert(nonEmptyText(claim?.id), "claim id is required in module " + module.id);
-      assert(!claimIds.has(claim.id), "duplicate claim id: " + claim.id);
-      claimIds.add(claim.id);
-
-      // V1 does not ingest audio, so the Agent cannot produce measured observations.
-      assert(
-        claim.kind !== "machine_observation",
-        "machine_observation is not allowed in V1 without an audio-analysis engine: " + claim.id,
+function validateRegistry(sources, registry) {
+  const canonical = new Map(registry.map((s) => [s.id, s]));
+  for (const source of sources) {
+    invariant(
+      canonical.has(source.id) &&
+        JSON.stringify(canonical.get(source.id)) === JSON.stringify(source),
+      "来源必须来自服务端读取记录。",
+    );
+  }
+}
+const statusForKind = {
+  external_evidence: "supported",
+  user_perception: "interpreted",
+  ai_interpretation: "interpreted",
+  general_theory: "general",
+  unknown: "unknown",
+};
+function validateClaims(claims, index, song, used = new Set()) {
+  for (const claim of claims) {
+    invariant(claim.id.trim() && !used.has(claim.id), "判断 ID 缺失或重复。");
+    used.add(claim.id);
+    invariant(claim.text.trim(), "判断内容为空。");
+    invariant(
+      statusForKind[claim.kind] === claim.status,
+      "判断类型与状态不一致：" + claim.id,
+    );
+    if (claim.kind === "external_evidence")
+      invariant(claim.evidenceIds.length > 0, "歌曲事实缺少支撑片段。");
+    if (claim.kind === "general_theory")
+      invariant(claim.versionScope === "general", "通用理论必须标为 general。");
+    for (const id of claim.evidenceIds) {
+      const excerpt = index.excerpts.get(id);
+      invariant(excerpt, "判断引用的支撑片段不存在。");
+      invariant(
+        excerpt.topics.includes(claim.topic),
+        "片段的支持范围不包含该判断。",
       );
-
-      assert(Array.isArray(claim.sourceIds), "claim.sourceIds must be an array: " + claim.id);
-
-      if (claim.kind === "external_evidence" && claim.status === "supported") {
-        assert(claim.sourceIds.length > 0, "supported external evidence has no source: " + claim.id);
-      }
-
-      for (const sourceId of claim.sourceIds) {
-        assert(sourceMap.has(sourceId), "claim references missing source " + sourceId + ": " + claim.id);
-      }
+      invariant(
+        claim.versionScope === "general" ||
+          excerpt.source.versionScope === claim.versionScope,
+        "资料与判断的版本范围不匹配。",
+      );
+    }
+    if (
+      claim.kind === "external_evidence" &&
+      claim.topic !== "identity" &&
+      claim.versionScope !== "general"
+    ) {
+      invariant(
+        song.identityStatus === "resolved",
+        "版本未确定时不能确认歌曲专属技术判断。",
+      );
+      invariant(
+        claim.versionScope === song.versionScope,
+        "判断不适用于当前选择的版本。",
+      );
     }
   }
-
-  for (const source of sourceMap.values()) {
-    assert(Array.isArray(source.supports), "source.supports must be an array: " + source.id);
-    for (const claimId of source.supports) {
-      assert(claimIds.has(claimId), "source " + source.id + " supports missing claim " + claimId);
-    }
+  return used;
+}
+export function validateSongAnalysisIntegrity(analysis, registry = []) {
+  validateContract("song-analysis", analysis);
+  validateRegistry(analysis.sources, registry);
+  const index = evidenceIndex(analysis.sources),
+    used = new Set(),
+    moduleIds = new Set();
+  invariant(analysis.song.versionScope.trim(), "歌曲版本范围不能为空。");
+  if (analysis.song.identityStatus === "ambiguous")
+    invariant(
+      analysis.song.candidates.length >= 2,
+      "版本歧义需要至少两个候选。",
+    );
+  for (const module of analysis.modules) {
+    invariant(
+      module.id.trim() && !moduleIds.has(module.id),
+      "分析点 ID 缺失或重复。",
+    );
+    moduleIds.add(module.id);
+    invariant(module.claims.length > 0, "分析点必须包含判断或通用理论。");
+    validateClaims(module.claims, index, analysis.song, used);
+    // The rendered summary cannot introduce an extra factual paragraph.
+    invariant(
+      module.summary ===
+        module.claims
+          .slice(0, 2)
+          .map((c) => c.text)
+          .join("\n"),
+      "模块摘要必须由已有判断组成。",
+    );
   }
-
+  for (const expression of Object.values(analysis.overallVibe)) {
+    for (const id of expression.claimIds)
+      invariant(used.has(id), "总体观感引用了不存在的判断。");
+    if (expression.text.trim())
+      invariant(
+        expression.claimIds.length > 0 || used.size === 0,
+        "总体观感需要标出解释依据。",
+      );
+  }
   return analysis;
 }
-
-export function validateDeepDiveIntegrity(deepDive, analysis, expectedAnalysisItemId) {
-  assert(deepDive && typeof deepDive === "object", "deepDive must be an object.");
-  assert(
-    deepDive.analysisItemId === expectedAnalysisItemId,
-    "deepDive.analysisItemId does not match the selected item.",
+export function validateDeepDiveIntegrity(
+  deepDive,
+  analysis,
+  expectedId,
+  registry = [],
+) {
+  validateContract("deep-dive", deepDive);
+  validateRegistry(deepDive.sources, registry);
+  invariant(
+    deepDive.analysisItemId === expectedId,
+    "深挖结果与所选分析点不一致。",
   );
-
-  const analysisSources = collectSources(analysis?.sources || [], "analysis.sources");
-  const deepDiveSources = collectSources(deepDive.sources || [], "deepDive.sources");
-  const allSources = new Map([...analysisSources, ...deepDiveSources]);
-
-  const requireSourceIds = (ids, label) => {
-    assert(Array.isArray(ids), label + " sourceIds must be an array.");
-    for (const sourceId of ids) {
-      assert(allSources.has(sourceId), label + " references missing source " + sourceId);
-    }
-  };
-
-  assert(Array.isArray(deepDive.confirmed), "deepDive.confirmed must be an array.");
-  for (const item of deepDive.confirmed) {
-    assert(nonEmptyText(item?.text), "confirmed item text is required.");
-    requireSourceIds(item.sourceIds, "confirmed item");
-    assert(item.sourceIds.length > 0, "confirmed song-specific item must have at least one source.");
-  }
-
-  assert(Array.isArray(deepDive.sourceSupport), "deepDive.sourceSupport must be an array.");
-  for (const item of deepDive.sourceSupport) {
-    assert(allSources.has(item.sourceId), "sourceSupport references missing source " + item.sourceId);
-  }
-
-  const studio = deepDive.studio;
-  assert(studio && typeof studio === "object", "deepDive.studio is required.");
-
-  if (studio.eligible) {
-    assert(studio.potential !== "none", "eligible Studio item cannot have potential=none.");
-    assert(studio.seed && typeof studio.seed === "object", "eligible Studio item requires a seed.");
-    requireSourceIds(studio.seed.sourceIds, "Studio seed");
-
-    if (studio.seed.sourceType === "source_transcription") {
-      assert(studio.seed.sourceIds.length > 0, "source_transcription requires at least one source.");
-      const hasTranscriptionSource = studio.seed.sourceIds.some((id) => {
-        const source = allSources.get(id);
-        return source?.sourceType === "score" || source?.sourceType === "transcription";
-      });
-      assert(
-        hasTranscriptionSource,
-        "source_transcription requires a score or transcription source.",
+  const index = evidenceIndex(deepDive.sources);
+  const used = validateClaims(deepDive.claims, index, analysis.song);
+  for (const cue of deepDive.listeningCues) {
+    for (const id of cue.claimIds)
+      invariant(used.has(id), "聆听提示引用了不存在的判断。");
+    if (cue.scope === "recording") {
+      invariant(
+        cue.claimIds.length > 0 &&
+          cue.claimIds.some(
+            (id) =>
+              deepDive.claims.find((c) => c.id === id)?.kind ===
+              "external_evidence",
+          ),
+        "原曲聆听提示需要歌曲专属依据。",
       );
     }
-  } else {
-    assert(studio.potential === "none", "ineligible Studio item must have potential=none.");
-    assert(studio.seed === null, "ineligible Studio item must not include a seed.");
   }
-
+  const { studio } = deepDive;
+  if (!studio.eligible) {
+    invariant(
+      studio.potential === "none" && studio.seed === null,
+      "Studio 不适用时不能附带实验。",
+    );
+    return deepDive;
+  }
+  invariant(
+    studio.potential !== "none" && studio.seed,
+    "Studio 实验缺少 seed。",
+  );
+  const seed = studio.seed;
+  invariant(
+    seed.code.trim() && seed.alternativeCode.trim(),
+    "实验需要 A/B 两个版本。",
+  );
+  invariant(
+    seed.code.length <= 16000 && seed.alternativeCode.length <= 16000,
+    "实验代码过长。",
+  );
+  invariant(
+    seed.playback.bpm >= 20 &&
+      seed.playback.bpm <= 300 &&
+      seed.playback.beatsPerCycle > 0 &&
+      seed.playback.beatsPerCycle <= 32,
+    "实验速度或循环拍数无效。",
+  );
+  invariant(
+    seed.experiment.variable.trim() &&
+      seed.experiment.constants.length &&
+      seed.experiment.listenFor.length &&
+      seed.experiment.limitation.trim(),
+    "实验需要变量、控制条件、聆听目标和边界说明。",
+  );
+  for (const id of seed.evidenceIds)
+    invariant(index.excerpts.has(id), "Studio 引用了不存在的片段。");
+  if (seed.sourceType === "source_transcription") {
+    invariant(
+      analysis.song.identityStatus === "resolved",
+      "版本未确定时不能标为原曲转录。",
+    );
+    invariant(
+      seed.evidenceIds.some((id) => {
+        const source = index.excerpts.get(id)?.source;
+        return (
+          ["score", "transcription"].includes(source?.sourceType) &&
+          source.versionScope === analysis.song.versionScope
+        );
+      }),
+      "原曲转录需要适用当前版本的谱例或转录依据。",
+    );
+  }
   return deepDive;
 }

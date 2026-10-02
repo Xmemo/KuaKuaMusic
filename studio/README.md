@@ -18,25 +18,8 @@ The previous bespoke MIDI-window concept is retired. MIDI may later be an export
 
 ## Interaction model
 
-```
-Deep Dive
-  ↓
-Studio seed
-  ↓
-validate
-  ↓
-play
-  ↓
-user / AI proposes change
-  ↓
-preview diff
-  ↓
-apply
-  ↓
-play + compare
-  ↓
-undo / redo
-```
+Select a Deep Dive → open its A/B experiment → propose a change → preview code and playback settings → apply → save or undo/redo. Built-in play and native visual feedback remain pending the explicit license decision. Export the current revision to audition in the official Strudel editor.
+
 
 The Agent should read the current pattern before proposing changes.
 
@@ -74,3 +57,6 @@ The source label belongs to each revision rather than the whole session. Undo/re
 The actual `@strudel/*` runtime is intentionally not bundled in this architecture PR because current Strudel packages are AGPL-licensed. Resolve the repository/distribution license first, then implement the adapter against the chosen Strudel packages.
 
 This licensing gate does not change the product decision: Studio is Strudel-first.
+
+
+Each revision stores full playback settings as well as code. AI proposals reference a saved baseRevisionId and never apply automatically. A changed revision or changed editor draft invalidates the preview. Current implementation and limits: [architecture v1.1](../docs/TECHNICAL_ARCHITECTURE_V1.1.md).

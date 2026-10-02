@@ -1,3 +1,5 @@
+> Initial architecture baseline. Current implemented contracts, APIs, UI, persistence and verification limits: [Technical Architecture v1.1](TECHNICAL_ARCHITECTURE_V1.1.md).
+
 # MusicLearning2026 — Technical Architecture v1
 
 ## 0. Architecture decision
@@ -556,3 +558,4 @@ After licensing gate, bundle/host the selected Strudel runtime and implement pla
 ### P4 — local evidence persistence
 
 Promote evidence package from response payload into durable local storage.
+

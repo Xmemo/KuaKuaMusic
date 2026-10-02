@@ -1,135 +1,26 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "MusicLearning2026 DeepDive v1.1",
+  "title": "MusicLearning2026 Studio proposal",
   "type": "object",
   "additionalProperties": false,
   "required": [
-    "analysisItemId",
-    "title",
-    "claims",
-    "generalTheory",
-    "conflicts",
-    "unknowns",
-    "listeningCues",
-    "studio",
-    "sources"
+    "baseRevisionId",
+    "code",
+    "playback",
+    "explanation"
   ],
   "properties": {
-    "analysisItemId": {
+    "baseRevisionId": {
       "type": "string"
     },
-    "title": {
+    "code": {
       "type": "string"
     },
-    "claims": {
-      "type": "array",
-      "items": {
-        "$ref": "#/$defs/claim"
-      }
+    "playback": {
+      "$ref": "#/$defs/playback"
     },
-    "generalTheory": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "concept",
-          "explanation"
-        ],
-        "properties": {
-          "concept": {
-            "type": "string"
-          },
-          "explanation": {
-            "type": "string"
-          }
-        }
-      }
-    },
-    "conflicts": {
-      "type": "array",
-      "items": {
-        "type": "string"
-      }
-    },
-    "unknowns": {
-      "type": "array",
-      "items": {
-        "type": "string"
-      }
-    },
-    "listeningCues": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "text",
-          "claimIds",
-          "scope"
-        ],
-        "properties": {
-          "text": {
-            "type": "string"
-          },
-          "claimIds": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "scope": {
-            "type": "string",
-            "enum": [
-              "recording",
-              "general"
-            ]
-          }
-        }
-      }
-    },
-    "studio": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "eligible",
-        "potential",
-        "reason",
-        "seed"
-      ],
-      "properties": {
-        "eligible": {
-          "type": "boolean"
-        },
-        "potential": {
-          "type": "string",
-          "enum": [
-            "none",
-            "rhythm",
-            "harmony",
-            "both"
-          ]
-        },
-        "reason": {
-          "type": "string"
-        },
-        "seed": {
-          "anyOf": [
-            {
-              "type": "null"
-            },
-            {
-              "$ref": "#/$defs/seed"
-            }
-          ]
-        }
-      }
-    },
-    "sources": {
-      "type": "array",
-      "items": {
-        "$ref": "#/$defs/source"
-      }
+    "explanation": {
+      "type": "string"
     }
   },
   "$defs": {

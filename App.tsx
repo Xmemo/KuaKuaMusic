@@ -1,477 +1,507 @@
-import React, { useState, useEffect } from 'react';
-import KwaKwa from './components/KwaKwa';
-import FlipCard from './components/FlipCard';
-import { searchSongs, analyzeSong, askAboutSong } from './services/musicService';
-import { AppState, SongMetadata, PraiseContent, KwaKwaState, DAILY_LIMIT } from './types';
-
-declare var chrome: any;
-
-const SEARCH_RESULTS_PER_PAGE = 12;
-
-function App() {
-  const [appState, setAppState] = useState<AppState>('HOME');
-  const [query, setQuery] = useState('');
-  const [songData, setSongData] = useState<SongMetadata | null>(null);
-  const [praiseData, setPraiseData] = useState<PraiseContent | null>(null);
-  const [activeTab, setActiveTab] = useState<'emo' | 'hype' | 'pro'>('emo');
-  const [errorMsg, setErrorMsg] = useState('');
-  const [searchResults, setSearchResults] = useState<SongMetadata[]>([]);
-  const [searchPage, setSearchPage] = useState(1);
-  const [question, setQuestion] = useState('');
-  const [questionAnswers, setQuestionAnswers] = useState<{ question: string; answer: string }[]>([]);
-  const [isAsking, setIsAsking] = useState(false);
-  const [questionError, setQuestionError] = useState('');
-  const [actionNotice, setActionNotice] = useState('');
-
-
-  // --- CHROME LISTENER ---
+import React, { useEffect, useRef, useState } from "react";
+import { searchSongs } from "./services/musicService";
+import {
+  analyzeSongWithEvidence,
+  deepDiveAnalysisItem,
+  getMusicLearningAgentHealth,
+  listSavedAnalyses,
+  loadSavedAnalysis,
+} from "./services/musicLearningService";
+import type { SongMetadata } from "./types";
+import type {
+  AgentHealth,
+  AnalysisHistoryItem,
+  EvidencePackage,
+  StoredAnalysis,
+  StoredDeepDive,
+} from "./music-learning/types";
+import { ClaimList, Notes, SourcesPanel } from "./components/EvidencePanel";
+import StudioPanel from "./components/StudioPanel";
+const categories = {
+  culture: "文化与背景",
+  harmony: "和声",
+  rhythm: "节奏与律动",
+  timbre: "音色",
+  arrangement: "编曲",
+  structure: "结构",
+  production: "制作",
+};
+const modes = { emo: "走心", hype: "上头", pro: "懂行" };
+function MusicLearningApp() {
+  const [query, setQuery] = useState(""),
+    [perception, setPerception] = useState("");
+  const [matches, setMatches] = useState<SongMetadata[]>([]),
+    [selected, setSelected] = useState<SongMetadata | null>(null);
+  const [stored, setStored] = useState<StoredAnalysis | null>(null),
+    [savedPackage, setSavedPackage] = useState<EvidencePackage | null>(null);
+  const [dive, setDive] = useState<StoredDeepDive | null>(null),
+    [mode, setMode] = useState<keyof typeof modes>("emo");
+  const [question, setQuestion] = useState(""),
+    [history, setHistory] = useState<AnalysisHistoryItem[]>([]);
+  const [health, setHealth] = useState<AgentHealth | null>(null),
+    [busy, setBusy] = useState(""),
+    [error, setError] = useState(""),
+    [connection, setConnection] = useState("");
+  const controller = useRef<AbortController | null>(null),
+    ticket = useRef(0);
+  const analysis = stored?.analysis;
   useEffect(() => {
-    const handleMessage = async (message: any, sender: any, sendResponse: any) => {
-      if (message.type === 'SONG_CHANGE' && message.payload) {
-        const { title, artist, coverUrl, platform } = message.payload;
-        if (songData && songData.title === title && songData.artist === artist) return;
-        
-        console.log("夸夸音乐 - New Song:", title);
-        const meta = { title, artist, coverUrl, platform };
-        setSongData(meta);
-        setSearchResults([]);
-        setPraiseData(null);
-        setQuestion('');
-        setQuestionAnswers([]);
-        setQuestionError('');
-        handleHypeItInternal(meta);
-      }
+    let disposed = false;
+    getMusicLearningAgentHealth()
+      .then((value) => {
+        if (!disposed) setHealth(value);
+      })
+      .catch(() => {
+        if (!disposed) setConnection("请在本机运行 npm run dev 后打开本页面。");
+      });
+    listSavedAnalyses()
+      .then((value) => {
+        if (!disposed) setHistory(value);
+      })
+      .catch(() => {});
+    return () => {
+      disposed = true;
+      controller.current?.abort();
+      ticket.current++;
     };
-
-    if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
-        chrome.runtime.onMessage.addListener(handleMessage);
-        return () => chrome.runtime.onMessage.removeListener(handleMessage);
-    }
-  }, [songData]);
-
-  // --- ACTIONS ---
-
-  const handleManualSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!query.trim()) return;
-    performIdentification(query);
-  };
-
-  const performIdentification = async (q: string) => {
-      setErrorMsg('');
-      setSearchResults([]);
-      setSearchPage(1);
-      setAppState('SEARCHING');
-      try {
-          const matches = await searchSongs(q);
-          if (!matches.length) {
-              setErrorMsg('沒有找到相符歌曲，請試試「歌名 + 歌手」或貼上歌曲連結。');
-              setAppState('HOME');
-              return;
-          }
-          setSearchResults(matches);
-          setAppState('SEARCH_RESULTS');
-      } catch (e) {
-          console.error("Music Search Error:", e);
-          const msg = e instanceof Error ? e.message : "歌曲搜索失败，请稍后重试。";
-          setErrorMsg(msg);
-          setAppState('HOME');
-      }
-  }
-
-  const handleSelectSong = (meta: SongMetadata) => {
-      setSongData(meta);
-      setSearchResults([]);
-      setSearchPage(1);
-      setPraiseData(null);
-      setQuestionAnswers([]);
-      setQuestionError('');
-      handleHypeItInternal(meta);
-  }
-
-  const handleHypeIt = async () => {
-    if (!songData) return;
-    handleHypeItInternal(songData);
-  };
-
-  const handleHypeItInternal = async (meta: SongMetadata) => {
-      setAppState('ANALYZING');
-      setErrorMsg('');
-
-      try {
-          const analysis = await analyzeSong(meta);
-          setPraiseData(analysis);
-          setAppState('RESULT');
-          if (analysis.isBadSong) setActiveTab('hype');
-      } catch (err) {
-          console.error("Analysis Error:", err);
-          const msg = err instanceof Error ? err.message : "KwaKwa 過熱了... (Server Busy)";
-          setErrorMsg(msg);
-          setAppState('ERROR');
-      }
-  };
-
-  const handleAskQuestion = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!songData || !praiseData || !question.trim() || isAsking) return;
-    const currentQuestion = question.trim();
-    setQuestion('');
-    setIsAsking(true);
-    setQuestionError('');
+  }, []);
+  async function refreshHistory() {
     try {
-      const answer = await askAboutSong(songData, praiseData, currentQuestion, questionAnswers);
-      setQuestionAnswers((previous) => [...previous, { question: currentQuestion, answer }]);
-    } catch (error) {
-      setQuestionError(error instanceof Error ? error.message : '回答失败，请重试。');
+      setHistory(await listSavedAnalyses());
+    } catch {}
+  }
+  async function search(event: React.FormEvent) {
+    event.preventDefault();
+    if (!query.trim() || busy) return;
+    controller.current = null;
+    setBusy("正在搜索歌曲");
+    setError("");
+    try {
+      setMatches(await searchSongs(query));
+    } catch (e) {
+      setError((e as Error).message);
     } finally {
-      setIsAsking(false);
+      setBusy("");
     }
-  };
-
-  const handleCopyQuote = async () => {
-    if (!praiseData) return;
+  }
+  async function analyze(song: SongMetadata & { selectedVersion?: string }) {
+    controller.current?.abort();
+    controller.current = new AbortController();
+    const currentTicket = ++ticket.current;
+    setSelected(song);
+    setBusy("正在读取资料并整理解释，可能需要几分钟");
+    setError("");
     try {
-      await navigator.clipboard.writeText(praiseData.modes[activeTab]);
-      setActionNotice('当前夸歌文案已复制');
-    } catch {
-      setActionNotice('复制失败，请手动选择文案');
+      const value = await analyzeSongWithEvidence(
+        song,
+        perception,
+        controller.current.signal,
+      );
+      if (currentTicket !== ticket.current) return;
+      setStored(value);
+      setSavedPackage(null);
+      setDive(null);
+      setMatches([]);
+      await refreshHistory();
+    } catch (e) {
+      if (
+        currentTicket === ticket.current &&
+        (e as Error).name !== "AbortError"
+      )
+        setError((e as Error).message);
+    } finally {
+      if (currentTicket === ticket.current) setBusy("");
     }
-  };
-
-  const handleSaveAnalysis = () => {
-    if (!songData || !praiseData) return;
-    const sections: Array<[string, { publicText: string; geekText: string }]> = [
-      ['文化脉络', praiseData.deepDive.culture],
-      ['和声', praiseData.deepDive.harmony],
-      ['节奏', praiseData.deepDive.rhythm],
-      ['音色', praiseData.deepDive.timbre],
-    ];
-    const lines = [
-      songData.title + ' — ' + songData.artist,
-      '',
-      praiseData.hook,
-      '',
-      '走心：' + praiseData.modes.emo,
-      '上头：' + praiseData.modes.hype,
-      '懂行：' + praiseData.modes.pro,
-      '',
-    ];
-    for (const [title, item] of sections) {
-      lines.push(title, item.publicText, item.geekText, '');
+  }
+  async function expand(id: string, followup = "") {
+    if (!stored || busy) return;
+    controller.current = new AbortController();
+    const currentTicket = ++ticket.current;
+    setBusy("正在围绕这个问题深入研究");
+    setError("");
+    try {
+      const value = await deepDiveAnalysisItem(
+        stored.analysisId,
+        id,
+        followup,
+        controller.current.signal,
+      );
+      if (currentTicket !== ticket.current) return;
+      setDive(value);
+      const pkg = await loadSavedAnalysis(stored.analysisId);
+      if (currentTicket === ticket.current) setSavedPackage(pkg);
+      await refreshHistory();
+    } catch (e) {
+      if (
+        currentTicket === ticket.current &&
+        (e as Error).name !== "AbortError"
+      )
+        setError((e as Error).message);
+    } finally {
+      if (currentTicket === ticket.current) setBusy("");
     }
-    const blob = new Blob([lines.join(String.fromCharCode(10))], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
+  }
+  async function restore(id: string) {
+    controller.current?.abort();
+    const currentTicket = ++ticket.current;
+    setBusy("正在恢复研究记录");
+    setError("");
+    try {
+      const pkg = await loadSavedAnalysis(id);
+      if (currentTicket !== ticket.current) return;
+      setStored(pkg);
+      setSavedPackage(pkg);
+      setSelected({
+        title: pkg.analysis.song.title,
+        artist: pkg.analysis.song.artist,
+      });
+      setPerception(pkg.analysis.userPerception || "");
+      setDive(pkg.deepDives.at(-1) || null);
+      setMatches([]);
+    } catch (e) {
+      if (currentTicket === ticket.current) setError((e as Error).message);
+    } finally {
+      if (currentTicket === ticket.current) setBusy("");
+    }
+  }
+  function cancel() {
+    controller.current?.abort();
+    ticket.current++;
+    setBusy("");
+    setError("研究已取消，已有保存记录仍可继续使用。");
+  }
+  function exportAnalysis() {
+    if (!stored) return;
+    const blob = new Blob([JSON.stringify(savedPackage || stored, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob),
+      link = document.createElement("a");
     link.href = url;
-    link.download = (songData.title + ' - 夸夸音乐分析.txt').replace(/[\\/:*?"<>|]/g, '_');
+    link.download = "music-learning-evidence.json";
     link.click();
-    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-    setActionNotice('分析文本已下载');
-  };
-
-  const handleReset = () => {
-    setAppState('HOME');
-    setQuery('');
-    setSongData(null);
-    setPraiseData(null);
-    setSearchResults([]);
-    setSearchPage(1);
-    setQuestion('');
-    setQuestionAnswers([]);
-    setQuestionError('');
-    setActionNotice('');
-    setErrorMsg('');
-    setActiveTab('emo');
-  };
-
-  // --- STYLES ---
-  const getBackgroundStyle = () => {
-    // Enforce a consistent dark theme even in result page
-    return { background: 'radial-gradient(circle at 50% 10%, #1e1e24 0%, #000000 70%)' };
-  };
-
-  // --- RENDERERS ---
-  const searchPageCount = Math.max(1, Math.ceil(searchResults.length / SEARCH_RESULTS_PER_PAGE));
-  const visibleSearchResults = searchResults.slice(
-    (searchPage - 1) * SEARCH_RESULTS_PER_PAGE,
-    searchPage * SEARCH_RESULTS_PER_PAGE,
-  );
-
-  const renderHome = () => (
-    <div className="flex flex-col items-center justify-center min-h-screen px-4 text-center pb-10 pt-10">
-      <div className="relative w-[22rem] max-w-[92vw] aspect-[11/6] mb-8">
-           <KwaKwa state={KwaKwaState.IDLE} className="w-full h-full" />
-           {/* Notification Bubble */}
-           {songData && (
-               <div className="absolute -top-3 right-0 bg-yellow-400 text-black text-xs font-black italic px-3 py-1 rounded-none transform rotate-3 shadow-[4px_4px_0px_rgba(0,0,0,1)]">
-                   NEW VIBE!
-               </div>
-           )}
-      </div>
-      
-      <h1 className="text-4xl font-black tracking-tighter mb-2 text-white transform -skew-x-3">
-        夸夸音乐
-      </h1>
-      <p className="text-zinc-300 text-sm max-w-xl leading-relaxed mb-10 px-2">
-        输入歌名，夸夸音乐会立刻生成 3 种风格的高质量夸歌文案（走心 / 上头 / 懂行），让你夸得云淡风轻又阳春白雪。
-      </p>
-      
-      {songData ? (
-          <div className="w-full max-w-sm bg-white/5 border border-white/10 rounded-xl p-4 mb-6 backdrop-blur-sm relative group overflow-hidden">
-              <div className="flex items-center gap-4 z-10 relative">
-                  <div className="relative w-16 h-16 flex-shrink-0">
-                       <div className="absolute -right-6 top-1 w-14 h-14 bg-black rounded-full border border-zinc-800 flex items-center justify-center animate-[spin_4s_linear_infinite]">
-                          <div className="w-4 h-4 bg-zinc-800 rounded-full border border-zinc-700"></div>
-                       </div>
-                       <img src={songData.coverUrl || 'https://via.placeholder.com/50'} className="w-16 h-16 object-cover relative z-10 shadow-lg rounded" />
-                  </div>
-                  
-                  <div className="text-left overflow-hidden flex-1 pl-2">
-                      <h3 className="font-bold text-white truncate text-lg leading-tight">{songData.title}</h3>
-                      <p className="text-xs text-zinc-400 truncate font-mono uppercase">{songData.artist}</p>
-                  </div>
-              </div>
-              
-              <button 
-                  onClick={handleHypeIt}
-                  className="mt-4 w-full bg-yellow-400 hover:bg-yellow-300 text-black font-black uppercase py-3 text-sm rounded-lg transition-transform active:scale-[0.98] flex items-center justify-center gap-2 tracking-wide"
-              >
-                  ⚡ 立即生成夸歌文案
-              </button>
-          </div>
-      ) : (
-        <form onSubmit={handleManualSearch} className="w-full max-w-sm relative mb-4">
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+  return (
+    <div className="music-app">
+      <header>
+        <a className="brand" href="/">
+          夸夸音乐 <span>MusicLearning2026</span>
+        </a>
+        <span className="tag">从好奇到音乐实验</span>
+      </header>
+      <main>
+        <section className="hero">
+          <p className="eyebrow">听懂一个细节，再亲手改变它</p>
+          <h1>这首歌，为什么让我想再听一次？</h1>
+          <p className="muted">
+            选择歌曲，找到有资料支持的解释，再用一个小实验探索音乐机制。
+          </p>
+        </section>
+        {connection ? (
+          <p className="notice" role="status">
+            {connection}
+          </p>
+        ) : null}
+        {health && !health.ok ? (
+          <p className="notice" role="status">
+            研究服务尚未就绪。请确认 Codex 已登录，并在受信任的项目中加载配置。
+          </p>
+        ) : null}
+        <form className="panel input-panel" onSubmit={search}>
+          <label htmlFor="song-query">歌曲链接、歌名或艺人</label>
+          <div className="input-row">
             <input
-            type="text"
-            maxLength={300}
-            value={query}
-            onChange={(e) => { setQuery(e.target.value); setErrorMsg(''); setSearchResults([]); setSearchPage(1); }}
-            placeholder="粘贴歌曲链接，或输入歌名 / 歌手"
-            className="w-full bg-white/10 border border-white/20 rounded-full py-3 px-6 text-center text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-yellow-400 focus:ring-1 focus:ring-yellow-400 transition-all font-mono"
+              id="song-query"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="例如：歌名 + 艺人"
             />
-            <button type="submit" className="mt-3 w-full bg-yellow-400 hover:bg-yellow-300 text-black font-black py-3 text-sm rounded-lg transition-transform active:scale-[0.98]">
+            <button className="primary" disabled={!!busy || !query.trim()}>
               搜索歌曲
             </button>
-        </form>
-      )}
-
-      {errorMsg && appState !== 'ERROR' && (
-        <p role="alert" className="w-full max-w-sm text-sm text-rose-300 bg-rose-400/10 border border-rose-300/20 rounded-lg px-4 py-3 mb-4">
-          {errorMsg}
-        </p>
-      )}
-
-      {searchResults.length > 0 && (
-        <div className="w-full max-w-xl space-y-2 mb-8 text-left">
-          <div className="text-xs uppercase tracking-widest text-white/40 px-1">搜索结果 · 选择一首开始分析</div>
-          {visibleSearchResults.map((song) => (
-            <button
-              key={song.id || song.title + song.artist}
-              type="button"
-              onClick={() => handleSelectSong(song)}
-              className="w-full flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 p-3 text-left transition-colors"
-            >
-              {song.coverUrl ? (
-                <img src={song.coverUrl} alt="" className="w-12 h-12 rounded object-cover flex-shrink-0" />
-              ) : (
-                <div className="w-12 h-12 rounded bg-white/10 flex items-center justify-center text-yellow-300">♪</div>
-              )}
-              <span className="min-w-0 flex-1">
-                <span className="block truncate font-bold text-white">{song.title}</span>
-                <span className="block truncate text-xs text-zinc-400">{song.artist}{song.album ? ' · ' + song.album : ''}</span>
-              </span>
-              <span className="text-xs font-bold text-yellow-300 whitespace-nowrap">分析 →</span>
-            </button>
-          ))}
-          <div className="flex items-center justify-between gap-3 pt-2 px-1 text-xs text-white/50">
-            <span>第 {searchPage} / {searchPageCount} 页 · 共 {searchResults.length} 首</span>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                disabled={searchPage <= 1}
-                onClick={() => setSearchPage((page) => Math.max(1, page - 1))}
-                className="rounded-lg border border-white/10 px-3 py-2 text-white/70 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-30"
-              >
-                上一页
-              </button>
-              <button
-                type="button"
-                disabled={searchPage >= searchPageCount}
-                onClick={() => setSearchPage((page) => Math.min(searchPageCount, page + 1))}
-                className="rounded-lg border border-white/10 px-3 py-2 text-white/70 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-30"
-              >
-                下一页
-              </button>
-            </div>
           </div>
-        </div>
-      )}
-      
-      <div className="absolute bottom-4 text-[10px] text-zinc-600 font-mono tracking-widest">
-          v2.0 • FOR UNLIMITED PRAISING
-      </div>
-    </div>
-  );
-
-  const renderLoading = () => (
-    <div className="flex flex-col items-center justify-center min-h-screen text-center px-4">
-      <div className="relative mb-8 w-[22rem] max-w-[92vw] aspect-[11/6]">
-          <div className="absolute inset-0 bg-yellow-400/10 blur-3xl opacity-20 rounded-full"></div>
-          <KwaKwa state={KwaKwaState.HYPE} className="w-full h-full relative z-10" />
-      </div>
-      <h2 className="text-2xl font-black text-white italic transform -skew-x-6 mb-2">
-        夸夸生成中...
-      </h2>
-      <div className="flex flex-col gap-1 text-zinc-500 text-[10px] font-mono uppercase tracking-wider">
-        <span className="animate-[pulse_1s_infinite_0ms]">正在识别歌曲信息...</span>
-        <span className="animate-[pulse_1s_infinite_200ms]">正在分析音乐风格...</span>
-        <span className="animate-[pulse_1s_infinite_400ms]">正在生成夸歌文案...</span>
-      </div>
-    </div>
-  );
-
-
-  const renderResult = () => {
-    if (!praiseData || !songData) return null;
-
-    return (
-      <div className="w-full min-h-screen pb-10 pt-4 px-4 overflow-y-auto overflow-x-hidden scrollbar-hide">
-        {/* Header */}
-        <div className="flex justify-between items-center mb-6">
-            <button onClick={handleReset} className="text-white/60 hover:text-white flex items-center gap-1 text-sm font-bold">
-                &larr; BACK
-            </button>
-            <div className="text-[10px] font-black tracking-[0.2em] text-white/20">夸夸音乐</div>
-        </div>
-
-        {/* AREA A: The Hook & Vinyl Visual */}
-        <section className="relative mb-8 flex flex-col items-center text-center">
-           <div className="relative w-48 h-48 mb-6 flex items-center justify-center">
-              {/* Spinning record effect bg */}
-              <div className="absolute inset-0 rounded-full bg-black/40 border border-white/5 animate-[spin_10s_linear_infinite] shadow-2xl">
-                 <div className="absolute inset-[10%] rounded-full border border-white/5 opacity-50"></div>
-                 <div className="absolute inset-[20%] rounded-full border border-white/5 opacity-40"></div>
-                 <div className="absolute inset-[30%] rounded-full border border-white/5 opacity-30"></div>
-              </div>
-              
-              {/* Album Art as Label */}
-              <div className="absolute w-20 h-20 rounded-full overflow-hidden animate-[spin_10s_linear_infinite]">
-                  <img src={songData.coverUrl} className="w-full h-full object-cover opacity-60" />
-              </div>
-
-              {/* KwaKwa on top */}
-              <KwaKwa state={praiseData.kwaKwaState} className="w-full h-full relative z-10 drop-shadow-2xl scale-90" />
-           </div>
-           
-           <h1 className="text-3xl font-bold text-white mb-1 tracking-tight">{songData.title}</h1>
-           <p className="text-white/60 mb-2 font-mono text-sm uppercase tracking-widest">{songData.artist}</p>
-           <p className="text-white/75 text-sm max-w-lg leading-relaxed mb-3">{praiseData.hook}</p>
-           <p className="text-white/30 text-[10px] mb-4">根据曲目信息生成解读；没有直接播放或读取音频。</p>
-        </section>
-
-        {/* AREA B: Highlights (Tabs) */}
-        <section className="mb-12">
-            <div className="flex p-1 bg-white/10 rounded-xl mb-6 backdrop-blur-md">
-                {(['emo', 'hype', 'pro'] as const).map((mode) => (
-                    <button
-                        key={mode}
-                        onClick={() => setActiveTab(mode)}
-                        className={`flex-1 py-3 rounded-lg text-xs font-bold uppercase tracking-widest transition-all ${
-                            activeTab === mode 
-                            ? 'bg-yellow-400 text-black shadow-lg' 
-                            : 'text-white/40 hover:text-white'
-                        }`}
-                    >
-                        {mode === 'emo' ? 'Emo 走心' : mode === 'hype' ? 'Hype 上頭' : 'Pro 懂行'}
-                    </button>
-                ))}
-            </div>
-            
-            <div className="bg-white/5 p-6 rounded-2xl border border-white/10 min-h-[140px] flex items-center justify-center shadow-inner backdrop-blur-sm">
-                 <p className="text-lg text-center leading-relaxed text-white font-medium italic">
-                     "{praiseData.modes[activeTab]}"
-                 </p>
-            </div>
-        </section>
-
-        {/* AREA C: Deep Dive (Sandwich Method) - Vertical Stack Layout */}
-        <section className="mb-10">
-            <h3 className="text-white/50 text-xs font-bold uppercase tracking-[0.3em] mb-6 flex items-center gap-4 justify-center">
-                <span className="w-8 h-[1px] bg-white/20 inline-block"></span>
-                DEEP DIVE
-                <span className="w-8 h-[1px] bg-white/20 inline-block"></span>
-            </h3>
-            <div className="space-y-4">
-                <FlipCard category="CULTURE / 文化" data={praiseData.deepDive.culture} />
-                <FlipCard category="HARMONY / 和聲" data={praiseData.deepDive.harmony} />
-                <FlipCard category="RHYTHM / 律動" data={praiseData.deepDive.rhythm} />
-                <FlipCard category="TIMBRE / 音色" data={praiseData.deepDive.timbre} />
-            </div>
-        </section>
-
-        {/* Follow-up music Q&A */}
-        <section className="mb-10">
-            <h3 className="text-white/80 text-lg font-bold mb-2">继续问这首歌</h3>
-            <p className="text-white/40 text-xs mb-4">可以追问刚才的分析、某个乐段，或你想听懂的音乐概念。</p>
-            <form onSubmit={handleAskQuestion} className="flex gap-2">
-              <input
-                value={question}
-                maxLength={600}
-                onChange={(e) => setQuestion(e.target.value)}
-                placeholder="例如：副歌为什么听起来更有张力？"
-                className="min-w-0 flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-yellow-400"
-              />
-              <button
-                type="submit"
-                disabled={isAsking || !question.trim()}
-                className="px-4 py-3 rounded-xl bg-yellow-400 text-black font-bold text-xs disabled:opacity-50"
-              >
-                {isAsking ? '思考中…' : '提问'}
-              </button>
-            </form>
-            {questionError && <p role="alert" className="text-rose-300 text-xs mt-3">{questionError}</p>}
-            <div className="space-y-3 mt-4">
-              {questionAnswers.map((item, index) => (
-                <article key={index} className="rounded-xl border border-white/10 bg-white/5 p-4">
-                  <p className="text-yellow-200 text-sm font-bold mb-2">你：{item.question}</p>
-                  <p className="text-white/80 text-sm leading-relaxed whitespace-pre-wrap">{item.answer}</p>
-                </article>
+          <label htmlFor="perception">你想理解哪个细节？（可选）</label>
+          <textarea
+            id="perception"
+            rows={2}
+            maxLength={1200}
+            value={perception}
+            onChange={(event) => setPerception(event.target.value)}
+            placeholder="例如：副歌为什么突然感觉开阔？"
+          />
+        </form>
+        {busy ? (
+          <div className="busy" role="status">
+            <span>{busy}</span>
+            {controller.current ? (
+              <button onClick={cancel}>取消研究</button>
+            ) : null}
+          </div>
+        ) : null}
+        {error ? (
+          <p className="notice" role="alert">
+            {error}
+          </p>
+        ) : null}
+        {matches.length ? (
+          <section className="panel">
+            <h2>选择要研究的歌曲</h2>
+            <div className="song-grid">
+              {matches.slice(0, 24).map((song, index) => (
+                <button
+                  className="song-choice"
+                  key={(song.id || song.title) + index}
+                  disabled={!!busy}
+                  onClick={() => analyze(song)}
+                >
+                  <strong>{song.title}</strong>
+                  <span>{song.artist}</span>
+                  <small>{song.album || song.platform || ""}</small>
+                </button>
               ))}
             </div>
-        </section>
-
-        {/* Footer */}
-        <div className="flex gap-4">
-             <button onClick={handleCopyQuote} className="flex-1 bg-white/10 hover:bg-white/20 text-white text-xs py-4 rounded-xl font-bold uppercase tracking-wider transition-colors border border-white/5">
-                复制当前夸歌文案
-            </button>
-            <button onClick={handleSaveAnalysis} className="flex-1 bg-yellow-400 hover:bg-yellow-300 text-black text-xs py-4 rounded-xl font-bold uppercase tracking-wider transition-colors shadow-lg shadow-yellow-400/20">
-                下载分析文本
-            </button>
-        </div>
-        {actionNotice && <p aria-live="polite" className="text-center text-xs text-white/50 mt-3">{actionNotice}</p>}
-      </div>
-    );
-  };
-
-  return (
-    <div 
-      className="min-h-screen transition-colors duration-1000 ease-in-out font-sans selection:bg-yellow-400 selection:text-black"
-      style={getBackgroundStyle()}
-    >
-      {(appState === 'HOME' || appState === 'SEARCH_RESULTS') && renderHome()}
-      {(appState === 'SEARCHING' || appState === 'ANALYZING') && renderLoading()}
-      {appState === 'ERROR' && (
-           <div className="flex flex-col items-center justify-center min-h-screen text-center px-4">
-            <KwaKwa state={KwaKwaState.OVERHEAT} className="w-32 h-32 mb-6" />
-            <h2 className="text-lg font-bold text-red-500 mb-2">CRITICAL ERROR</h2>
-            <p className="text-zinc-400 text-sm mb-6">{errorMsg}</p>
-            <button onClick={handleReset} className="px-6 py-2 bg-zinc-800 rounded text-white text-xs uppercase tracking-wider hover:bg-zinc-700">Reboot System</button>
-          </div>
-      )}
-      {appState === 'RESULT' && renderResult()}
+          </section>
+        ) : null}
+        {analysis && stored ? (
+          <>
+            <section className="panel overview">
+              <div className="section-top">
+                <div>
+                  <p className="eyebrow">{analysis.song.artist}</p>
+                  <h2>{analysis.song.title}</h2>
+                </div>
+                <button onClick={exportAnalysis}>导出研究</button>
+              </div>
+              <p className="muted">
+                {analysis.song.versionScope} ·{" "}
+                {analysis.song.identityStatus === "resolved"
+                  ? "版本已确定"
+                  : analysis.song.identityStatus === "ambiguous"
+                    ? "存在多个候选版本"
+                    : "版本尚未核实"}
+              </p>
+              {!stored.persistent ? (
+                <p className="notice">
+                  当前为临时保存，服务重启后记录会清除。需要保留时请导出。
+                </p>
+              ) : null}
+              {analysis.userPerception ? (
+                <p className="user-perception">
+                  你的问题：{analysis.userPerception}
+                </p>
+              ) : null}
+              <p className="preserve-lines">{analysis.overallVibe.hook.text}</p>
+              <div
+                className="mode-tabs"
+                role="group"
+                aria-label="整首歌总体观感"
+              >
+                {Object.entries(modes).map(([key, label]) => (
+                  <button
+                    key={key}
+                    aria-pressed={mode === key}
+                    onClick={() => setMode(key as keyof typeof modes)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <p className="vibe preserve-lines">
+                {analysis.overallVibe[mode].text}
+              </p>
+              {analysis.song.identityStatus === "ambiguous" ? (
+                <div className="version-options">
+                  <p>请选择版本，再继续歌曲专属分析：</p>
+                  {analysis.song.candidates.map((candidate) => (
+                    <button
+                      key={candidate.id}
+                      disabled={!!busy}
+                      onClick={() =>
+                        analyze({
+                          title: candidate.title,
+                          artist: candidate.artist,
+                          selectedVersion:
+                            candidate.recordingId || candidate.id,
+                        })
+                      }
+                    >
+                      {candidate.versionScope} · {candidate.reason}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </section>
+            <div className="module-grid">
+              {analysis.modules.map((item) => (
+                <section className="panel analysis-module" key={item.id}>
+                  <p className="eyebrow">{categories[item.category]}</p>
+                  <h2>{item.title}</h2>
+                  <ClaimList claims={item.claims} sources={analysis.sources} />
+                  <Notes title="这个分析点的未知部分" values={item.unknowns} />
+                  <button
+                    className="primary"
+                    disabled={!!busy || !item.expandable}
+                    onClick={() => expand(item.id)}
+                  >
+                    深入理解这个细节
+                  </button>
+                </section>
+              ))}
+            </div>
+            {!analysis.modules.length ? (
+              <section className="panel">
+                <h2>暂时没有足够资料形成歌曲专属分析</h2>
+                <p>
+                  你仍可以提出一个音乐问题，用清楚标注的通用解释和教学实验继续探索。
+                </p>
+              </section>
+            ) : null}
+            <form
+              className="panel"
+              onSubmit={(event) => {
+                event.preventDefault();
+                expand("question", question);
+              }}
+            >
+              <label htmlFor="explore-question">继续探索一个具体问题</label>
+              <div className="input-row">
+                <input
+                  id="explore-question"
+                  value={question}
+                  maxLength={1200}
+                  onChange={(event) => setQuestion(event.target.value)}
+                  placeholder="例如：音区升高为什么可能显得更开阔？"
+                />
+                <button disabled={!!busy || !question.trim()}>
+                  探索这个问题
+                </button>
+              </div>
+              <p className="muted">
+                没有原曲依据的机制会标为通用理论或教学演示。
+              </p>
+            </form>
+            {savedPackage?.deepDives.length ? (
+              <details className="panel">
+                <summary>
+                  已保存的深入研究（{savedPackage.deepDives.length}）
+                </summary>
+                {savedPackage.deepDives.map((value) => (
+                  <button
+                    className="history-item"
+                    key={value.deepDiveId}
+                    onClick={() => setDive(value)}
+                  >
+                    {value.deepDive.title} · {value.question || "分析点深挖"}
+                  </button>
+                ))}
+              </details>
+            ) : null}
+            {dive ? (
+              <section className="panel deep-dive">
+                <p className="eyebrow">围绕一个问题深入理解</p>
+                <h2>{dive.deepDive.title}</h2>
+                <ClaimList
+                  claims={dive.deepDive.claims}
+                  sources={dive.deepDive.sources}
+                />
+                <Notes title="资料中的冲突" values={dive.deepDive.conflicts} />
+                <Notes title="仍然未知" values={dive.deepDive.unknowns} />
+                {dive.deepDive.listeningCues.length ? (
+                  <div>
+                    <h3>下次怎么听</h3>
+                    <ul>
+                      {dive.deepDive.listeningCues.map((cue, index) => (
+                        <li key={index}>
+                          {cue.scope === "general" ? "通用聆听练习：" : ""}
+                          {cue.text}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+                {!dive.deepDive.studio.eligible ? (
+                  <p className="muted">{dive.deepDive.studio.reason}</p>
+                ) : null}
+              </section>
+            ) : null}
+            {dive?.deepDive.studio.eligible && dive.deepDive.studio.seed ? (
+              <StudioPanel
+                key={dive.deepDiveId}
+                saved={dive}
+                initialSession={
+                  savedPackage?.studioSessions.find(
+                    (value) => value.deepDiveId === dive.deepDiveId,
+                  )?.session
+                }
+                onSaved={(session) =>
+                  setSavedPackage((previous) =>
+                    previous
+                      ? {
+                          ...previous,
+                          studioSessions: [
+                            ...previous.studioSessions.filter(
+                              (value) => value.session.id !== session.id,
+                            ),
+                            { deepDiveId: dive.deepDiveId, session },
+                          ],
+                        }
+                      : previous,
+                  )
+                }
+              />
+            ) : null}
+            <Notes title="当前研究的未知部分" values={analysis.unknowns} />
+            <SourcesPanel
+              sources={
+                dive?.deepDive.sources ||
+                savedPackage?.sources ||
+                analysis.sources
+              }
+            />
+          </>
+        ) : null}
+        {history.length ? (
+          <details className="panel history">
+            <summary>继续之前的研究（{history.length}）</summary>
+            {history.slice(0, 30).map((item) => (
+              <button
+                className="history-item"
+                key={item.analysisId}
+                disabled={!!busy}
+                onClick={() => restore(item.analysisId)}
+              >
+                <strong>
+                  {item.song.title} — {item.song.artist}
+                </strong>
+                <span>
+                  {new Date(item.updatedAt).toLocaleString("zh-CN")} ·{" "}
+                  {item.deepDiveCount} 次深入研究
+                </span>
+              </button>
+            ))}
+          </details>
+        ) : null}
+        {selected && !stored && !busy ? (
+          <button onClick={() => analyze(selected)}>
+            重新研究 {selected.title}
+          </button>
+        ) : null}
+      </main>
+      <footer>每个判断都应能追溯；每个实验都应能说明它改变了什么。</footer>
     </div>
   );
 }
-
-export default App;
+const LegacyApp =
+  import.meta.env.VITE_ENABLE_LEGACY_UI === "1"
+    ? React.lazy(() => import("./LegacyApp"))
+    : null;
+export default function App() {
+  if (LegacyApp && new URLSearchParams(location.search).get("legacy") === "1")
+    return (
+      <React.Suspense fallback={<p>正在加载旧版页面</p>}>
+        <LegacyApp />
+      </React.Suspense>
+    );
+  return <MusicLearningApp />;
+}
