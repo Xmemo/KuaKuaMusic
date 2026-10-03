@@ -1,0 +1,12 @@
+# Project-level Codex configuration.
+# Codex loads project .codex/config.toml only when the repository is trusted.
+#
+# MusicBrainz is the identity/provenance backbone for MusicLearning2026.
+# The hosted instance is convenient for local development; self-host if reliability
+# or shared-rate-limit requirements become important.
+
+web_search = "live"
+
+[mcp_servers.musicbrainz]
+url = "https://musicbrainz.caseyjhand.com/mcp"
+

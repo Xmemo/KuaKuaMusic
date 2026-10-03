@@ -1,0 +1,791 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MusicLearning2026 DeepDive v1.2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "analysisItemId",
+    "title",
+    "claims",
+    "generalTheory",
+    "conflicts",
+    "unknowns",
+    "listeningCues",
+    "studio",
+    "sources"
+  ],
+  "properties": {
+    "analysisItemId": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "claims": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/claim"
+      }
+    },
+    "generalTheory": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "concept",
+          "explanation"
+        ],
+        "properties": {
+          "concept": {
+            "type": "string"
+          },
+          "explanation": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "conflicts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "unknowns": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "listeningCues": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "text",
+          "claimIds",
+          "scope"
+        ],
+        "properties": {
+          "text": {
+            "type": "string"
+          },
+          "claimIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "recording",
+              "source_version",
+              "general"
+            ]
+          }
+        }
+      }
+    },
+    "studio": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "eligible",
+        "potential",
+        "reason",
+        "seed"
+      ],
+      "properties": {
+        "eligible": {
+          "type": "boolean"
+        },
+        "potential": {
+          "type": "string",
+          "enum": [
+            "none",
+            "rhythm",
+            "harmony",
+            "both"
+          ]
+        },
+        "reason": {
+          "type": "string"
+        },
+        "seed": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/seed"
+            }
+          ]
+        }
+      }
+    },
+    "sources": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/source"
+      }
+    }
+  },
+  "$defs": {
+    "candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "title",
+        "artist",
+        "versionScope",
+        "recordingId",
+        "reason"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "artist": {
+          "type": "string"
+        },
+        "versionScope": {
+          "type": "string"
+        },
+        "recordingId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "reason": {
+          "type": "string"
+        }
+      }
+    },
+    "song": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "title",
+        "artist",
+        "album",
+        "releaseYear",
+        "versionScope",
+        "identityStatus",
+        "candidates",
+        "musicBrainzRecordingId",
+        "musicBrainzWorkId",
+        "musicBrainzReleaseId"
+      ],
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "artist": {
+          "type": "string"
+        },
+        "album": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "releaseYear": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "versionScope": {
+          "type": "string"
+        },
+        "identityStatus": {
+          "type": "string",
+          "enum": [
+            "resolved",
+            "ambiguous",
+            "unresolved"
+          ]
+        },
+        "candidates": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/candidate"
+          }
+        },
+        "musicBrainzRecordingId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "musicBrainzWorkId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "musicBrainzReleaseId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "excerpt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "text",
+        "locator",
+        "topics"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "locator": {
+          "type": "string"
+        },
+        "topics": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "identity",
+              "culture",
+              "harmony",
+              "rhythm",
+              "timbre",
+              "arrangement",
+              "structure",
+              "production"
+            ]
+          }
+        }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "title",
+        "author",
+        "publisher",
+        "sourceType",
+        "url",
+        "versionScope",
+        "documentHash",
+        "retrievedAt",
+        "excerpts"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "author": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "publisher": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sourceType": {
+          "type": "string",
+          "enum": [
+            "musicbrainz",
+            "official",
+            "interview",
+            "credits",
+            "analysis",
+            "score",
+            "transcription",
+            "reference",
+            "other"
+          ]
+        },
+        "url": {
+          "type": "string"
+        },
+        "versionScope": {
+          "type": "string"
+        },
+        "documentHash": {
+          "type": "string"
+        },
+        "retrievedAt": {
+          "type": "string"
+        },
+        "excerpts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/excerpt"
+          }
+        }
+      }
+    },
+    "proposedSource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "title",
+        "author",
+        "publisher",
+        "sourceType",
+        "url",
+        "versionScope",
+        "excerpts"
+      ],
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "author": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "publisher": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sourceType": {
+          "type": "string",
+          "enum": [
+            "musicbrainz",
+            "official",
+            "interview",
+            "credits",
+            "analysis",
+            "score",
+            "transcription",
+            "reference",
+            "other"
+          ]
+        },
+        "url": {
+          "type": "string"
+        },
+        "versionScope": {
+          "type": "string"
+        },
+        "excerpts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "text",
+              "locator",
+              "topics"
+            ],
+            "properties": {
+              "text": {
+                "type": "string"
+              },
+              "locator": {
+                "type": "string"
+              },
+              "topics": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "identity",
+                    "culture",
+                    "harmony",
+                    "rhythm",
+                    "timbre",
+                    "arrangement",
+                    "structure",
+                    "production"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "claim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "kind",
+        "status",
+        "text",
+        "evidenceIds",
+        "versionScope",
+        "scope",
+        "prerequisiteClaimIds",
+        "topic",
+        "reasoningNote"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "external_evidence",
+            "user_perception",
+            "ai_interpretation",
+            "general_theory",
+            "unknown"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "supported",
+            "interpreted",
+            "general",
+            "unknown"
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "evidenceIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "versionScope": {
+          "type": "string"
+        },
+        "scope": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "level",
+            "label"
+          ],
+          "properties": {
+            "level": {
+              "type": "string",
+              "enum": [
+                "recording",
+                "work",
+                "source_version",
+                "general"
+              ]
+            },
+            "label": {
+              "type": "string"
+            }
+          }
+        },
+        "prerequisiteClaimIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "topic": {
+          "type": "string",
+          "enum": [
+            "identity",
+            "culture",
+            "harmony",
+            "rhythm",
+            "timbre",
+            "arrangement",
+            "structure",
+            "production"
+          ]
+        },
+        "reasoningNote": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "expression": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "text",
+        "claimIds"
+      ],
+      "properties": {
+        "text": {
+          "type": "string"
+        },
+        "claimIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "listeningCue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "text",
+        "claimIds",
+        "scope"
+      ],
+      "properties": {
+        "text": {
+          "type": "string"
+        },
+        "claimIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "scope": {
+          "type": "string",
+          "enum": [
+            "recording",
+            "source_version",
+            "general"
+          ]
+        }
+      }
+    },
+    "module": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "category",
+        "title",
+        "summary",
+        "summaryClaimIds",
+        "explanation",
+        "explanationClaimIds",
+        "listeningCues",
+        "claims",
+        "unknowns",
+        "expandable",
+        "studioPotential"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "category": {
+          "type": "string",
+          "enum": [
+            "culture",
+            "harmony",
+            "rhythm",
+            "timbre",
+            "arrangement",
+            "structure",
+            "production"
+          ]
+        },
+        "title": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "summaryClaimIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "explanation": {
+          "type": "string"
+        },
+        "explanationClaimIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "listeningCues": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/listeningCue"
+          }
+        },
+        "claims": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/claim"
+          }
+        },
+        "unknowns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "expandable": {
+          "type": "boolean"
+        },
+        "studioPotential": {
+          "type": "string",
+          "enum": [
+            "none",
+            "rhythm",
+            "harmony",
+            "both"
+          ]
+        }
+      }
+    },
+    "playback": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "bpm",
+        "beatsPerCycle",
+        "soundBank",
+        "runtimeVersion"
+      ],
+      "properties": {
+        "bpm": {
+          "type": "number"
+        },
+        "beatsPerCycle": {
+          "type": "number"
+        },
+        "soundBank": {
+          "type": "string"
+        },
+        "runtimeVersion": {
+          "type": "string"
+        }
+      }
+    },
+    "experiment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "question",
+        "variable",
+        "baseline",
+        "changed",
+        "constants",
+        "listenFor",
+        "limitation"
+      ],
+      "properties": {
+        "question": {
+          "type": "string"
+        },
+        "variable": {
+          "type": "string"
+        },
+        "baseline": {
+          "type": "string"
+        },
+        "changed": {
+          "type": "string"
+        },
+        "constants": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "listenFor": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "limitation": {
+          "type": "string"
+        }
+      }
+    },
+    "seed": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sourceType",
+        "evidenceIds",
+        "code",
+        "alternativeCode",
+        "explanation",
+        "visualHints",
+        "playback",
+        "experiment"
+      ],
+      "properties": {
+        "sourceType": {
+          "type": "string",
+          "enum": [
+            "source_transcription",
+            "learning_reconstruction"
+          ]
+        },
+        "evidenceIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "code": {
+          "type": "string"
+        },
+        "alternativeCode": {
+          "type": "string"
+        },
+        "explanation": {
+          "type": "string"
+        },
+        "visualHints": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "pianoroll",
+              "punchcard",
+              "spiral",
+              "scope",
+              "spectrum",
+              "pitchwheel"
+            ]
+          }
+        },
+        "playback": {
+          "$ref": "#/$defs/playback"
+        },
+        "experiment": {
+          "$ref": "#/$defs/experiment"
+        }
+      }
+    }
+  }
+}
