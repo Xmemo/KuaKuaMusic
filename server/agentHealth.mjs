@@ -36,7 +36,7 @@ export async function probeMusicBrainz(fetcher = fetch) {
       params: {
         protocolVersion: "2025-03-26",
         capabilities: {},
-        clientInfo: { name: "MusicLearning2026", version: "1.1" },
+        clientInfo: { name: "MusicLearning2026", version: "1.2" },
       },
     });
     if (!initialized?.result?.protocolVersion) return "unavailable";

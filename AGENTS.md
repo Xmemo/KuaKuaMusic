@@ -25,12 +25,17 @@ Help the user understand a specific recording with verifiable evidence, then tur
 
 ## Analysis output
 
-- Overall 走心 / 上头 / 懂行 variants are allowed only for the whole-song impression.
-- Structured modules use one clear evidence-oriented style.
+- Always assess culture, harmony, rhythm and timbre separately; identity metadata does not count as music-analysis coverage.
+- Show all four core dimensions and label each as analyzed, generic listening guidance, or insufficient evidence. Generic guidance never counts as analysis of the selected song.
+- Overall 走心 / 上头 / 懂行 variants must be meaningfully distinct, share the final evidence set, and be audited independently.
+- Structured modules start with a plain-language feature, then explain the supported mechanism and possible listener effect, offer concrete listening cues, and place citations/limits behind a collapsed details panel.
 - Omit unsupported/empty modules rather than filling a template.
 - Every supported song-specific claim must map to registered excerpt evidenceIds, with matching topic and version scope.
-- State version scope and conflicts.
+- State whether a claim applies to the selected recording, the composition/work, a source's stated version, or general theory.
+- Every AI interpretation names prerequisite claim IDs; if a prerequisite is removed, remove dependent interpretations.
+- Audit identity fields and copy independently. Never discard valid work-level or source-version information solely because a release year or recording identity is uncertain.
 - Keep source facts distinct from the Agent's interpretation.
+- The first research round is capped at 3 searches / 5 pages. If any core dimension lacks song-specific evidence, allow exactly one targeted supplement round with the same limits and no more than 10 unique sources across both rounds.
 
 ## Deep dive
 
@@ -76,4 +81,4 @@ Never claim a learning reconstruction is the original song.
 The AGPL licensing decision is recorded in docs/STRUDEL_LICENSE_DECISION.md. The pinned Strudel runtime is bundled behind an adapter boundary. Preserve upstream notices and corresponding source access. Generate musical expressions using the built-in synthesizers; do not generate browser/network operations or external sample-bank dependencies.
 
 
-Implementation contracts are defined in music-learning/contracts.mjs; regenerate schemas with npm run schemas:generate. Consult docs/TECHNICAL_ARCHITECTURE_V1.1.md for current API and persistence boundaries. Preserve independent analysis snapshots and every deep-dive turn. Never trust a client-supplied analysis or provenance label.
+Implementation contracts are defined in music-learning/contracts.mjs; regenerate schemas with npm run schemas:generate. Consult docs/TECHNICAL_ARCHITECTURE_V1.2.md for current analysis rules and docs/TECHNICAL_ARCHITECTURE_V1.1.md for API and persistence boundaries. Preserve independent analysis snapshots and every deep-dive turn. Never trust a client-supplied analysis or provenance label.

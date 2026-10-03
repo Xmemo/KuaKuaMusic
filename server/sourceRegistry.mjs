@@ -80,7 +80,7 @@ export async function readPublicSource(value, { signal, redirects = 0 } = {}) {
         signal,
         headers: {
           "User-Agent":
-            "MusicLearning2026/1.1 (https://github.com/Xmemo/KuaKuaMusic)",
+            "MusicLearning2026/1.2 (https://github.com/Xmemo/KuaKuaMusic)",
           Accept: "text/html,application/json,text/plain",
         },
         lookup: (_hostname, options, callback) =>
@@ -168,7 +168,7 @@ export async function registerSources(
   const unknowns = [];
   const unique = [...new Map(proposals.map((p) => [p.url, p])).values()].slice(
     0,
-    8,
+    10,
   );
   let cursor = 0;
   await Promise.all(
@@ -201,6 +201,15 @@ export async function registerSources(
                 text = normalized.slice(jsonDocument.offsets[start],
                   jsonDocument.offsets[start + compact.length - 1] + 1);
               }
+            }
+            if (text.length >= 12 && !normalized.includes(text)) {
+              const passages = text
+                .split(/(?<=[。！？.!?；;])\s*/u)
+                .map(normalizeEvidenceText)
+                .filter((part) => part.length >= 12 && part.length <= 600)
+                .sort((a, b) => b.length - a.length);
+              const located = passages.find((part) => normalized.includes(part));
+              if (located) text = located;
             }
             if (
               text.length < 12 ||

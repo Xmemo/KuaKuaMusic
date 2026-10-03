@@ -50,19 +50,21 @@ export const claim = {
   text: "合成案例的踩镲采用八分音符。",
   evidenceIds: ["ev-rhythm"],
   versionScope: scope,
+  scope: { level: "recording", label: scope },
+  prerequisiteClaimIds: [],
   topic: "rhythm",
   reasoningNote: null,
 };
-const expression = () => ({ text: claim.text, claimIds: [claim.id] });
+const expression = (label) => ({ text: label + "：" + claim.text, claimIds: [claim.id] });
 export function analysisFixture() {
   return structuredClone({
     song,
     userPerception: null,
     overallVibe: {
-      hook: expression(),
-      emo: expression(),
-      hype: expression(),
-      pro: expression(),
+      hook: expression("一句话"),
+      emo: expression("走心"),
+      hype: expression("上头"),
+      pro: expression("懂行"),
     },
     modules: [
       {
@@ -70,12 +72,23 @@ export function analysisFixture() {
         category: "rhythm",
         title: "踩镲的疏密",
         summary: claim.text,
+        summaryClaimIds: [claim.id],
+        explanation: "该段资料描述了踩镲的细分方式。\n\n因此可以留意它如何和底鼓保持稳定关系。",
+        explanationClaimIds: [claim.id],
+        listeningCues: [{ text: "跟着底鼓听踩镲的细分。", claimIds: [claim.id], scope: "recording" }],
         claims: [claim],
         unknowns: [],
         expandable: true,
         studioPotential: "rhythm",
       },
     ],
+    coverage: [
+      { category: "culture", status: "insufficient", moduleIds: [] },
+      { category: "harmony", status: "insufficient", moduleIds: [] },
+      { category: "rhythm", status: "analyzed", moduleIds: ["rhythm"] },
+      { category: "timbre", status: "insufficient", moduleIds: [] },
+    ],
+    completionStatus: "partial",
     sources: [source],
     unknowns: [],
   });
@@ -88,6 +101,8 @@ export function diveFixture(id = "rhythm") {
     text: "保持速度和其他声部一致时，增加踩镲事件可用于比较节奏密度。",
     evidenceIds: [],
     versionScope: "general",
+    scope: { level: "general", label: "通用音乐原理" },
+    prerequisiteClaimIds: [],
     topic: "rhythm",
     reasoningNote: "这是通用教学机制，不确认原曲编曲。",
   };
@@ -132,10 +147,17 @@ export function reviewFixture(claims, verdict = "supports") {
     claims: claims.map((c) => ({
       claimId: c.id,
       verdict,
+      applicability: c.scope?.level || "general",
       reason: "合成测试审核",
     })),
-    expressions: { hook: true, emo: true, hype: true, pro: true },
-    identitySupported: true,
+    identityFields: ["title", "artist", "album", "releaseYear", "musicBrainzRecordingId", "musicBrainzWorkId", "musicBrainzReleaseId"].map((field) => ({
+      field,
+      verdict: "supports",
+      reason: "合成测试身份审核",
+      evidenceIds: ["ev-identity"],
+    })),
+    recordingIdentity: "resolved",
+    texts: [],
     transcriptionSupported: false,
   };
 }

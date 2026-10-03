@@ -7,6 +7,7 @@ import {
   listSavedAnalyses,
   loadSavedAnalysis,
 } from "./services/musicLearningService";
+import type { AnalysisProgress } from "./services/musicLearningService";
 import type { SongMetadata } from "./types";
 import type {
   AgentHealth,
@@ -27,6 +28,14 @@ const categories = {
   production: "制作",
 };
 const modes = { emo: "走心", hype: "上头", pro: "懂行" };
+const coreLabels = { culture: "文化与背景", harmony: "和声", rhythm: "节奏与律动", timbre: "音色" } as const;
+const coreGuidance = {
+  culture: "试着把歌词里的叙述视角、意象和时代语境分开听。以下只是通用阅读方法，不代表已经确认这首歌的背景。",
+  harmony: "跟着低音听每次和弦变化，再留意旋律停留或解决的位置。以下是通用听歌练习，不是这首歌的和弦结论。",
+  rhythm: "轻轻跟拍，比较重拍、切分和鼓点疏密在哪里变化。以下是通用听歌练习，不是这首歌的节拍测量。",
+  timbre: "分别注意人声、低频、打击声和铺底声的明暗、远近与质感。以下是通用听歌练习，不是这首歌的录音分析。",
+} as const;
+const scopeLabels = { recording: "所选录音", work: "作品层面", source_version: "来源所述版本", general: "通用原理" } as const;
 function MusicLearningApp() {
   const [query, setQuery] = useState("");
   const [matches, setMatches] = useState<SongMetadata[]>([]),
@@ -40,11 +49,17 @@ function MusicLearningApp() {
     [history, setHistory] = useState<AnalysisHistoryItem[]>([]);
   const [health, setHealth] = useState<AgentHealth | null>(null),
     [busy, setBusy] = useState(""),
+    [analysisProgress, setAnalysisProgress] = useState<AnalysisProgress | null>(null),
     [error, setError] = useState(""),
     [connection, setConnection] = useState("");
   const controller = useRef<AbortController | null>(null),
     ticket = useRef(0);
   const analysis = stored?.analysis;
+  const failedCopyIds = new Set((stored?.evidenceReview?.texts ?? []).filter((item) => item.verdict !== "supports").map((item) => item.textId));
+  const availableModes = analysis
+    ? (Object.entries(modes) as Array<[keyof typeof modes, string]>).filter(([key]) => analysis.overallVibe[key].text.trim())
+    : [];
+  const displayMode = availableModes.some(([key]) => key === mode) ? mode : availableModes[0]?.[0];
   useEffect(() => {
     let disposed = false;
     getMusicLearningAgentHealth()
@@ -75,6 +90,7 @@ function MusicLearningApp() {
     if (!query.trim() || busy) return;
     controller.current = null;
     setBusy("正在搜索歌曲");
+    setAnalysisProgress(null);
     setError("");
     try {
       setMatches(await searchSongs(query));
@@ -94,13 +110,20 @@ function MusicLearningApp() {
     setSavedPackage(null);
     setDive(null);
     setQuestion("");
-    setBusy("正在读取资料并整理解释，可能需要几分钟");
+    setMode("emo");
+    setAnalysisProgress(null);
+    setBusy("正在准备研究");
     setError("");
     try {
       const value = await analyzeSongWithEvidence(
         song,
         "",
         controller.current.signal,
+        (progress) => {
+          if (currentTicket !== ticket.current) return;
+          setAnalysisProgress(progress);
+          setBusy(progress.label);
+        },
       );
       if (currentTicket !== ticket.current) return;
       setStored(value);
@@ -115,7 +138,7 @@ function MusicLearningApp() {
       )
         setError((e as Error).message);
     } finally {
-      if (currentTicket === ticket.current) setBusy("");
+      if (currentTicket === ticket.current) { setBusy(""); setAnalysisProgress(null); }
     }
   }
   async function expand(id: string, followup = "") {
@@ -123,6 +146,7 @@ function MusicLearningApp() {
     controller.current = new AbortController();
     const currentTicket = ++ticket.current;
     setBusy("正在围绕这个问题深入研究");
+    setAnalysisProgress(null);
     setError("");
     try {
       const value = await deepDiveAnalysisItem(
@@ -130,6 +154,11 @@ function MusicLearningApp() {
         id,
         followup,
         controller.current.signal,
+        (progress) => {
+          if (currentTicket !== ticket.current) return;
+          setAnalysisProgress(progress);
+          setBusy(progress.label);
+        },
       );
       if (currentTicket !== ticket.current) return;
       setDive(value);
@@ -143,7 +172,7 @@ function MusicLearningApp() {
       )
         setError((e as Error).message);
     } finally {
-      if (currentTicket === ticket.current) setBusy("");
+      if (currentTicket === ticket.current) { setBusy(""); setAnalysisProgress(null); }
     }
   }
   async function restore(id: string) {
@@ -172,6 +201,7 @@ function MusicLearningApp() {
     controller.current?.abort();
     ticket.current++;
     setBusy("");
+    setAnalysisProgress(null);
     setError("研究已取消，已有保存记录仍可继续使用。");
   }
   function exportAnalysis() {
@@ -234,7 +264,10 @@ function MusicLearningApp() {
         </form>
         {busy ? (
           <div className="busy" role="status">
-            <span>{busy}</span>
+            <span>
+              {analysisProgress ? <small>研究阶段 · {analysisProgress.operation === "deep_dive" ? "单点深挖" : analysisProgress.stage === "research" ? analysisProgress.round === 2 ? "补检轮" : "首轮" : analysisProgress.stage === "supplement" ? "针对缺口补查" : "分析整理"}</small> : null}
+              <strong>{busy}</strong>
+            </span>
             {controller.current ? (
               <button onClick={cancel}>取消研究</button>
             ) : null}
@@ -301,13 +334,13 @@ function MusicLearningApp() {
                   你的问题：{analysis.userPerception}
                 </p>
               ) : null}
-              <p className="preserve-lines">{analysis.overallVibe.hook.text}</p>
-              <div
+              {analysis.overallVibe.hook.text ? <p className="overview-hook preserve-lines">{analysis.overallVibe.hook.text}</p> : null}
+              {availableModes.length ? <div
                 className="mode-tabs"
                 role="group"
-                aria-label="整首歌总体观感"
+                aria-label="三种整首歌概括"
               >
-                {Object.entries(modes).map(([key, label]) => (
+                {availableModes.map(([key, label]) => (
                   <button
                     key={key}
                     aria-pressed={mode === key}
@@ -316,10 +349,10 @@ function MusicLearningApp() {
                     {label}
                   </button>
                 ))}
-              </div>
-              <p className="vibe preserve-lines">
-                {analysis.overallVibe[mode].text}
-              </p>
+              </div> : null}
+              {["emo", "hype", "pro"].filter((key) => failedCopyIds.has(key)).map((key) => <p className="notice" key={key}>{modes[key as keyof typeof modes]}版概括本轮未完成，其他通过审核的内容已保留。</p>)}
+              {displayMode ? <p className="vibe preserve-lines">{analysis.overallVibe[displayMode].text}</p> : null}
+              {analysis.completionStatus !== "complete" ? <p className="muted">本次分析为{analysis.completionStatus === "partial" ? "部分完成" : "资料不足"}；未覆盖维度会单独标明，不会用概括替代分析。</p> : null}
               {analysis.song.identityStatus === "ambiguous" ? (
                 <div className="version-options">
                   <p>请选择版本，再继续歌曲专属分析：</p>
@@ -342,31 +375,35 @@ function MusicLearningApp() {
                 </div>
               ) : null}
             </section>
-            <div className="module-grid">
-              {analysis.modules.map((item) => (
-                <section className="panel analysis-module" key={item.id}>
-                  <p className="eyebrow">{categories[item.category]}</p>
-                  <h2>{item.title}</h2>
-                  <ClaimList claims={item.claims} sources={analysis.sources} />
-                  <Notes title="这个分析点的未知部分" values={item.unknowns} />
-                  <button
-                    className="primary"
-                    disabled={!!busy || !item.expandable}
-                    onClick={() => expand(item.id)}
-                  >
-                    深入理解这个细节
-                  </button>
-                </section>
-              ))}
-            </div>
-            {!analysis.modules.length ? (
-              <section className="panel">
-                <h2>暂时没有足够资料形成歌曲专属分析</h2>
-                <p>
-                  你仍可以提出一个音乐问题，用清楚标注的通用解释和教学实验继续探索。
-                </p>
-              </section>
-            ) : null}
+            <section className="core-grid" aria-label="四个核心音乐维度">
+              {analysis.coverage.map((entry) => {
+                const linked = analysis.modules.filter((item) => entry.moduleIds.includes(item.id));
+                return <article className="panel core-dimension" key={entry.category}>
+                  <div className="section-top"><h2>{coreLabels[entry.category]}</h2><span className="tag">{entry.status === "analyzed" ? "已有解读" : entry.status === "guidance_only" ? "听歌指导" : "资料不足"}</span></div>
+                  {entry.status === "analyzed" ? linked.map((item) => <section className="analysis-module" key={item.id}>
+                    <h3>{item.title || "音乐特点"}</h3>
+                    {item.summary ? <p className="module-summary">{item.summary}</p> : null}
+                    {item.explanation ? <p className="module-explanation preserve-lines">{item.explanation}</p> : null}
+                    {item.listeningCues.length ? <div className="listening-cues"><h4>怎么听</h4><ul>{item.listeningCues.map((cue, index) => <li key={index}>{cue.scope === "general" ? <span className="tag">通用听歌线索</span> : cue.scope === "source_version" ? <span className="tag">来源版本听歌线索</span> : null} {cue.text}</li>)}</ul></div> : null}
+                    {["title", "summary", "explanation", "cue", "cue_set"].some((kind) => failedCopyIds.has(`module:${encodeURIComponent(item.id)}:${kind}`) || (kind === "cue" && [...failedCopyIds].some((id) => id.startsWith(`module:${encodeURIComponent(item.id)}:cue:`)))) ? <p className="muted">部分模块文案或听歌线索未通过审核，失败项已单独留空；其余合格内容仍保留。</p> : null}
+                    <div className="claim-scopes">{[...new Set(item.claims.map((claim) => claim.scope.level))].map((scope) => <span className="tag" key={scope}>{scopeLabels[scope]}</span>)}</div>
+                    <details className="module-evidence"><summary>依据与限制</summary><ClaimList claims={item.claims} sources={analysis.sources} /><Notes title="仍待确认" values={item.unknowns} /></details>
+                    <button className="primary" disabled={!!busy || !item.expandable} onClick={() => expand(item.id)}>深入理解这个细节</button>
+                  </section>) : entry.status === "guidance_only" ? <div className="guidance-only"><p className="tag">通用听歌练习 · 不计作歌曲分析</p><p>{coreGuidance[entry.category]}</p></div> : <p className="muted">当前资料未覆盖这个维度。通用听歌练习也无法替代针对这首歌的证据。</p>}
+                </article>;
+              })}
+            </section>
+            {analysis.modules.some((item) => !(["culture", "harmony", "rhythm", "timbre"] as string[]).includes(item.category)) ? <section className="module-grid secondary-modules" aria-label="其他分析模块">
+              {analysis.modules.filter((item) => !(["culture", "harmony", "rhythm", "timbre"] as string[]).includes(item.category)).map((item) => <section className="panel analysis-module" key={item.id}>
+                <p className="eyebrow">{categories[item.category]}</p><h2>{item.title || categories[item.category]}</h2>
+                {item.summary ? <p className="module-summary">{item.summary}</p> : null}
+                {item.explanation ? <p className="module-explanation preserve-lines">{item.explanation}</p> : null}
+                {item.listeningCues.length ? <div><h3>怎么听</h3><ul>{item.listeningCues.map((cue, index) => <li key={index}>{cue.scope === "source_version" ? <span className="tag">来源版本听歌线索</span> : cue.scope === "general" ? <span className="tag">通用听歌线索</span> : null} {cue.text}</li>)}</ul></div> : null}
+                {["title", "summary", "explanation", "cue", "cue_set"].some((kind) => failedCopyIds.has(`module:${encodeURIComponent(item.id)}:${kind}`) || (kind === "cue" && [...failedCopyIds].some((id) => id.startsWith(`module:${encodeURIComponent(item.id)}:cue:`)))) ? <p className="muted">部分模块文案或听歌线索未通过审核，失败项已单独留空；其余合格内容仍保留。</p> : null}
+                <details><summary>依据与限制</summary><ClaimList claims={item.claims} sources={analysis.sources} /><Notes title="仍待确认" values={item.unknowns} /></details>
+                <button className="primary" disabled={!!busy || !item.expandable} onClick={() => expand(item.id)}>深入理解这个细节</button>
+              </section>)}
+            </section> : null}
             <form
               className="panel"
               onSubmit={(event) => {
@@ -423,7 +460,7 @@ function MusicLearningApp() {
                     <ul>
                       {dive.deepDive.listeningCues.map((cue, index) => (
                         <li key={index}>
-                          {cue.scope === "general" ? "通用聆听练习：" : ""}
+                          {cue.scope === "general" ? "通用聆听练习：" : cue.scope === "source_version" ? "来源版本聆听线索：" : ""}
                           {cue.text}
                         </li>
                       ))}

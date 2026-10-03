@@ -43,7 +43,7 @@ async function writePackage(record) {
   if (persistent()) await atomicWrite(target(record.analysisId), record);
   else memory.set(record.analysisId, structuredClone(record));
 }
-export async function loadEvidencePackage(id) {
+async function readEvidencePackage(id) {
   requireId(id);
   if (!persistent()) {
     const value = memory.get(id);
@@ -60,6 +60,61 @@ export async function loadEvidencePackage(id) {
     "ANALYSIS_NOT_FOUND",
     404,
   );
+}
+export function normalizeLegacyPackage(record) {
+  if (!record || record.schemaVersion !== "1.1") return structuredClone(record);
+  const analysis = record.analysis;
+  const normalizeClaims = (claims) => claims.map((claim) => ({
+    ...claim,
+    scope: claim.scope || {
+      level: claim.kind === "general_theory" || claim.kind === "user_perception"
+        ? "general" : "source_version",
+      label: claim.kind === "general_theory" || claim.kind === "user_perception"
+        ? "通用原理或听感" : claim.versionScope,
+    },
+    prerequisiteClaimIds: claim.prerequisiteClaimIds || [],
+  }));
+  const modules = analysis.modules.map((module) => ({
+    ...module,
+    claims: normalizeClaims(module.claims),
+    summaryClaimIds: module.claims.slice(0, 2).map((claim) => claim.id),
+    explanation: "",
+    explanationClaimIds: [],
+    listeningCues: [],
+  }));
+  const coverage = ["culture", "harmony", "rhythm", "timbre"].map((category) => {
+    const analyzed = modules.some((module) => module.category === category && module.claims.some((claim) => claim.topic !== "identity" && ["external_evidence", "ai_interpretation", "user_perception"].includes(claim.kind)));
+    const moduleIds = modules.filter((module) => module.category === category && module.claims.some((claim) => claim.topic !== "identity" && ["external_evidence", "ai_interpretation", "user_perception"].includes(claim.kind))).map((module) => module.id);
+    return { category, status: analyzed ? "analyzed" : "insufficient", moduleIds: analyzed ? moduleIds : [] };
+  });
+  const analyzedCount = coverage.filter((entry) => entry.status === "analyzed").length;
+  return {
+    ...structuredClone(record),
+    evidenceReview: record.evidenceReview
+      ? {
+          ...structuredClone(record.evidenceReview),
+          texts: Array.isArray(record.evidenceReview.texts)
+            ? structuredClone(record.evidenceReview.texts)
+            : [],
+        }
+      : record.evidenceReview ?? null,
+    deepDives: (record.deepDives || []).map((saved) => ({
+      ...saved,
+      deepDive: {
+        ...saved.deepDive,
+        claims: normalizeClaims(saved.deepDive.claims || []),
+      },
+    })),
+    analysis: {
+      ...structuredClone(analysis),
+      modules,
+      coverage,
+      completionStatus: analyzedCount === 4 ? "complete" : analyzedCount ? "partial" : "insufficient",
+    },
+  };
+}
+export async function loadEvidencePackage(id) {
+  return normalizeLegacyPackage(await readEvidencePackage(id));
 }
 async function serialized(id, operation) {
   const previous = locks.get(id) || Promise.resolve();
@@ -102,7 +157,7 @@ export async function persistAnalysis(analysis, evidenceReview = null) {
   const analysisId = crypto.randomUUID(),
     createdAt = new Date().toISOString();
   const record = {
-    schemaVersion: "1.1",
+    schemaVersion: "1.2",
     analysisId,
     createdAt,
     updatedAt: createdAt,
@@ -130,7 +185,7 @@ export async function persistDeepDive(
   evidenceReview = null,
 ) {
   return serialized(requireId(analysisId), async () => {
-    const record = await loadEvidencePackage(analysisId);
+    const record = await readEvidencePackage(analysisId);
     const saved = {
       deepDiveId: crypto.randomUUID(),
       analysisId,

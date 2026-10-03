@@ -63,21 +63,98 @@ export const analyzeSongWithEvidence = (
   song: SongMetadata & { selectedVersion?: string },
   userPerception = "",
   signal?: AbortSignal,
-) =>
-  request<StoredAnalysis>("/api/agent/analyze", {
-    body: { song, userPerception },
+  onProgress?: (progress: AnalysisProgress) => void,
+) => analyzeWithProgress({ song, userPerception }, signal, onProgress);
+export interface AnalysisProgress {
+  operation?: "analysis" | "deep_dive";
+  stage: "research" | "draft" | "review" | "supplement" | "compose" | "copy_review" | "complete";
+  round: number;
+  label: string;
+}
+async function requestWithProgress<T>(
+  path: string,
+  body: unknown,
+  signal?: AbortSignal,
+  onProgress?: (progress: AnalysisProgress) => void,
+  retry = true,
+): Promise<T> {
+  const token = await getSession();
+  const response = await fetch(BASE + path, {
+    method: "POST",
+    cache: "no-store",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "text/event-stream, application/json",
+      "X-Music-Learning-Token": token,
+    },
+    body: JSON.stringify(body),
     signal,
   });
+  if (response.status === 401 && retry) {
+    session = null;
+    return requestWithProgress(path, body, signal, onProgress, false);
+  }
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null);
+    throw new Error(payload?.error || "本机研究服务暂不可用，请确认服务已启动。");
+  }
+  if (!response.headers.get("content-type")?.includes("text/event-stream")) {
+    const payload = await response.json().catch(() => null);
+    if (!payload) throw new Error("本机服务返回了空数据。");
+    return payload as T;
+  }
+  if (!response.body) throw new Error("研究进度连接不可用。");
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  while (true) {
+    const { value, done } = await reader.read();
+    buffer += decoder.decode(value, { stream: !done });
+    let boundary = buffer.indexOf("\n\n");
+    while (boundary >= 0) {
+      const frame = buffer.slice(0, boundary);
+      buffer = buffer.slice(boundary + 2);
+      const event = frame.match(/^event:\s*(.+)$/m)?.[1]?.trim();
+      const data = frame.match(/^data:\s*(.+)$/m)?.[1];
+      if (event && data) {
+        const payload = JSON.parse(data);
+        if (event === "progress") onProgress?.(payload as AnalysisProgress);
+        else if (event === "error") throw new Error(payload.error || "研究未能完成。");
+        else if (event === "result") return payload as T;
+      }
+      boundary = buffer.indexOf("\n\n");
+    }
+    if (done) break;
+  }
+  throw new Error("研究连接中断，未收到完整结果。");
+}
+async function analyzeWithProgress(
+  body: unknown,
+  signal?: AbortSignal,
+  onProgress?: (progress: AnalysisProgress) => void,
+  retry = true,
+): Promise<StoredAnalysis> {
+  return requestWithProgress<StoredAnalysis>(
+    "/api/agent/analyze",
+    body,
+    signal,
+    onProgress,
+    retry,
+  );
+}
 export const deepDiveAnalysisItem = (
   analysisId: string,
   analysisItemId: string,
   question = "",
   signal?: AbortSignal,
+  onProgress?: (progress: AnalysisProgress) => void,
 ) =>
-  request<StoredDeepDive>("/api/agent/deep-dive", {
-    body: { analysisId, analysisItemId, question },
+  requestWithProgress<StoredDeepDive>(
+    "/api/agent/deep-dive",
+    { analysisId, analysisItemId, question },
     signal,
-  });
+    (progress) => onProgress?.({ ...progress, operation: "deep_dive" }),
+  );
 export const getMusicLearningAgentHealth = () =>
   request<AgentHealth>("/api/agent/health");
 export const listSavedAnalyses = () =>

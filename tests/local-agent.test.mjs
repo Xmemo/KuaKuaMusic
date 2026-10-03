@@ -48,12 +48,10 @@ test("loopback boundary and session authorization block research before invocati
         (res) => {
           const chunks = [];
           res.on("data", (chunk) => chunks.push(chunk));
-          res.on("end", () =>
-            resolve({
-              status: res.statusCode,
-              json: async () => JSON.parse(Buffer.concat(chunks).toString()),
-            }),
-          );
+          res.on("end", () => {
+            const text = Buffer.concat(chunks).toString();
+            resolve({ status: res.statusCode, headers: res.headers, text, json: async () => JSON.parse(text) });
+          });
         },
       );
       req.on("error", reject);
@@ -120,6 +118,57 @@ test("loopback boundary and session authorization block research before invocati
     await new Promise((resolve) => server.close(resolve));
   }
 });
+test("analysis keeps JSON compatibility and streams real progress/result events when requested", async () => {
+  const app = createApp({
+    port: 8787,
+    analyze: async (_input, { onProgress }) => {
+      onProgress({ stage: "review", round: 1, label: "正在审核" });
+      return { analysisId: "fixture-result" };
+    },
+  });
+  const server = http.createServer(app);
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const url = "http://127.0.0.1:" + server.address().port;
+  const request = (headers) => new Promise((resolve, reject) => {
+    const req = http.request(url + "/api/agent/session", { headers: { Host: "127.0.0.1:8787" } }, (res) => {
+      const chunks = [];
+      res.on("data", (chunk) => chunks.push(chunk));
+      res.on("end", () => resolve(JSON.parse(Buffer.concat(chunks).toString())));
+    });
+    req.on("error", reject);
+    req.end();
+  });
+  try {
+    const token = (await request()).token;
+    const call = (accept) => new Promise((resolve, reject) => {
+      const req = http.request(url + "/api/agent/analyze", {
+        method: "POST", headers: { Host: "127.0.0.1:8787", "X-Music-Learning-Token": token,
+          "Content-Type": "application/json", Accept: accept },
+      }, (res) => {
+        const chunks = [];
+        res.on("data", (chunk) => chunks.push(chunk));
+        res.on("end", () => {
+          const text = Buffer.concat(chunks).toString();
+          resolve({ status: res.statusCode, contentType: res.headers["content-type"], text });
+        });
+      });
+      req.on("error", reject);
+      req.write("{}");
+      req.end();
+    });
+    const stream = await call("text/event-stream");
+    assert.equal(stream.status, 200);
+    assert.match(stream.contentType, /text\/event-stream/);
+    assert.match(stream.text, /event: progress/);
+    assert.match(stream.text, /event: result/);
+    const json = await call("application/json");
+    assert.match(json.contentType, /application\/json/);
+    assert.deepEqual(JSON.parse(json.text), { analysisId: "fixture-result" });
+  } finally {
+    server.closeAllConnections();
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
 test("bridge bounds output, timeout and cancellation; nonzero exit does not expose provider diagnostics", async () => {
   const bin = path.join(temp, "codex-fixture");
   await fs.writeFile(
@@ -146,7 +195,11 @@ test("bridge bounds output, timeout and cancellation; nonzero exit does not expo
     );
     await assert.rejects(
       runCodexCommand(["hang"], { timeoutMs: 40 }),
-      (error) => error.code === "AGENT_TIMEOUT",
+      (error) => error.code === "AGENT_TIMEOUT" && /分析步骤响应超时/.test(error.message),
+    );
+    await assert.rejects(
+      runCodexCommand(["--output-schema", "research-plan.schema.json", "hang"], { timeoutMs: 40 }),
+      (error) => error.code === "AGENT_TIMEOUT" && /资料检索超时/.test(error.message),
     );
     const controller = new AbortController();
     const request = runCodexCommand(["hang"], { signal: controller.signal });
@@ -211,6 +264,7 @@ test("structured research receives MusicBrainz explicitly in an untrusted checko
     assert.equal(args[0], "exec");
     assert.ok(args.includes("--ignore-user-config"));
     assert.ok(args.includes('mcp_servers.musicbrainz.url="https://musicbrainz.caseyjhand.com/mcp"'));
+    assert.ok(args.includes('mcp_servers.musicbrainz.enabled_tools=["musicbrainz_search_entities","musicbrainz_get_release","musicbrainz_get_recording","musicbrainz_get_work"]'));
     assert.ok(args.includes('web_search="live"'));
     assert.equal(args[args.indexOf("--sandbox") + 1], "read-only");
     assert.equal(args[args.indexOf("--model") + 1], getCodexBridgeConfig().model);

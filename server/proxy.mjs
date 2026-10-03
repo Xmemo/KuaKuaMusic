@@ -32,7 +32,7 @@ export function createApp({
   app.use(security.boundary);
   app.use(express.json({ limit: "128kb" }));
   app.get("/health", (_req, res) =>
-    res.json({ ok: true, mode: "local", schemaVersion: "1.1" }),
+    res.json({ ok: true, mode: "local", schemaVersion: "1.2" }),
   );
   app.get("/api/agent/session", (_req, res) => {
     res.setHeader("Cache-Control", "no-store");
@@ -86,13 +86,43 @@ export function createApp({
         );
       active = true;
       const controller = new AbortController();
+      const stream = req.get("accept")?.includes("text/event-stream");
+      if (stream) {
+        res.status(200);
+        res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
+        res.setHeader("Cache-Control", "no-cache, no-transform");
+        res.setHeader("Connection", "keep-alive");
+        res.flushHeaders?.();
+      }
+      const send = (event, value) => {
+        if (!stream || res.destroyed || res.writableEnded) return;
+        res.write("event: " + event + "\ndata: " + JSON.stringify(value) + "\n\n");
+      };
       const disconnect = () => {
         if (!res.writableEnded) controller.abort();
       };
       res.once("close", disconnect);
       try {
-        const result = await operation(req.body, { signal: controller.signal });
-        if (!controller.signal.aborted) res.json(result);
+        try {
+          const result = await operation(req.body, {
+            signal: controller.signal,
+            onProgress: (value) => send("progress", value),
+          });
+          if (!controller.signal.aborted) {
+            if (stream) {
+              send("result", result);
+              res.end();
+            } else res.json(result);
+          }
+        } catch (error) {
+          if (!stream) throw error;
+          const known = error instanceof AppError;
+          send("error", {
+            code: known ? error.code : "INTERNAL_ERROR",
+            error: known ? error.message : "本机研究服务未能完成请求。",
+          });
+          res.end();
+        }
       } finally {
         active = false;
         res.removeListener("close", disconnect);

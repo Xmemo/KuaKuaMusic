@@ -100,12 +100,27 @@ body {
 .music-app .actions { flex-wrap: wrap; margin: 16px 0; }
 .music-app .section-top, .music-app .busy { justify-content: space-between; }
 .music-app .busy { border: 1px solid #816392; background: #282037; border-radius: 12px; padding: 16px; }
+.music-app .busy > span { display: flex; flex-direction: column; gap: 4px; }
+.music-app .busy small { color: #c8bed8; }
 .music-app .notice { border-left: 3px solid #f4b66b; background: #302335; padding: 12px 16px; border-radius: 8px; }
 .music-app .tag { display: inline-block; color: #d5c7eb; border: 1px solid #625277; border-radius: 100px; padding: 3px 10px; font-size: 12px; }
 .music-app .kind-general_theory, .music-app .kind-ai_interpretation { color: #cfc1fd; background: #2c2441; }
 .music-app .kind-unknown { color: #ffe1b5; }
 .music-app .module-grid, .music-app .song-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 18px; }
 .music-app .module-grid .panel { margin: 0; }
+.music-app .core-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 18px; margin: 20px 0; }
+.music-app .core-dimension { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.music-app .core-dimension h2 { margin: 0; font-size: 21px; }
+.music-app .analysis-module { border-top: 1px solid #473b58; margin-top: 18px; padding-top: 12px; }
+.music-app .analysis-module h3 { margin: 8px 0 12px; }
+.music-app .analysis-module h4 { margin: 16px 0 8px; }
+.music-app .module-summary { color: #fff4fb; font-size: 17px; font-weight: 600; line-height: 1.7; }
+.music-app .module-explanation { color: #e1dbe9; line-height: 1.85; }
+.music-app .guidance-only { border-left: 2px solid #85749c; padding-left: 14px; color: #c8bed8; }
+.music-app .guidance-only .tag { white-space: normal; }
+.music-app .claim-scopes { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.music-app .module-evidence { margin: 14px 0; }
+.music-app .overview-hook { color: #f0c6de; font-size: 16px; line-height: 1.8; }
 .music-app .song-choice { display: flex; flex-direction: column; text-align: left; gap: 6px; }
 .music-app .song-choice span, .music-app .song-choice small { color: #c8bed8; }
 .music-app .claim { margin: 18px 0; }
@@ -145,7 +160,7 @@ body {
   .music-app header, .music-app main { padding: 18px 16px; }
   .music-app header > .tag { display: none; }
   .music-app .panel { padding: 18px; }
-  .music-app .module-grid, .music-app .song-grid, .music-app .experiment-grid, .music-app .diff-grid { grid-template-columns: 1fr; }
+  .music-app .module-grid, .music-app .core-grid, .music-app .song-grid, .music-app .experiment-grid, .music-app .diff-grid { grid-template-columns: 1fr; }
   .music-app .input-row { flex-wrap: wrap; }
   .music-app .input-row input { flex-basis: 100%; }
   .music-app .section-top { align-items: flex-start; flex-wrap: wrap; }

@@ -331,6 +331,8 @@
         "text",
         "evidenceIds",
         "versionScope",
+        "scope",
+        "prerequisiteClaimIds",
         "topic",
         "reasoningNote"
       ],
@@ -368,6 +370,34 @@
         },
         "versionScope": {
           "type": "string"
+        },
+        "scope": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "level",
+            "label"
+          ],
+          "properties": {
+            "level": {
+              "type": "string",
+              "enum": [
+                "recording",
+                "work",
+                "source_version",
+                "general"
+              ]
+            },
+            "label": {
+              "type": "string"
+            }
+          }
+        },
+        "prerequisiteClaimIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         },
         "topic": {
           "type": "string",
@@ -409,6 +439,34 @@
         }
       }
     },
+    "listeningCue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "text",
+        "claimIds",
+        "scope"
+      ],
+      "properties": {
+        "text": {
+          "type": "string"
+        },
+        "claimIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "scope": {
+          "type": "string",
+          "enum": [
+            "recording",
+            "source_version",
+            "general"
+          ]
+        }
+      }
+    },
     "module": {
       "type": "object",
       "additionalProperties": false,
@@ -417,6 +475,10 @@
         "category",
         "title",
         "summary",
+        "summaryClaimIds",
+        "explanation",
+        "explanationClaimIds",
+        "listeningCues",
         "claims",
         "unknowns",
         "expandable",
@@ -443,6 +505,27 @@
         },
         "summary": {
           "type": "string"
+        },
+        "summaryClaimIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "explanation": {
+          "type": "string"
+        },
+        "explanationClaimIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "listeningCues": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/listeningCue"
+          }
         },
         "claims": {
           "type": "array",

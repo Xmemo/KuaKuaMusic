@@ -7,6 +7,12 @@ const labels = {
   general_theory: "通用音乐原理",
   unknown: "尚未确认",
 };
+const scopeLabels = {
+  recording: "所选录音",
+  work: "作品层面",
+  source_version: "来源所述版本",
+  general: "通用原理",
+};
 export function ClaimList({
   claims,
   sources,
@@ -26,6 +32,8 @@ export function ClaimList({
       {claims.map((claim) => (
         <article key={claim.id} className="claim">
           <span className={"tag kind-" + claim.kind}>{labels[claim.kind]}</span>
+          <span className="tag">{scopeLabels[claim.scope.level]}</span>
+          <span className="muted claim-scope-label">{claim.scope.label}</span>
           <p className="preserve-lines">{claim.text}</p>
           {claim.reasoningNote ? (
             <p className="muted">{claim.reasoningNote}</p>

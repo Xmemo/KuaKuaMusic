@@ -5,6 +5,9 @@ export type EvidenceKind =
   | "general_theory"
   | "unknown";
 export type ClaimStatus = "supported" | "interpreted" | "general" | "unknown";
+export type ClaimScopeLevel = "recording" | "work" | "source_version" | "general";
+export type CoverageStatus = "analyzed" | "guidance_only" | "insufficient";
+export type CompletionStatus = "complete" | "partial" | "insufficient";
 export type AnalysisCategory =
   | "culture"
   | "harmony"
@@ -24,6 +27,8 @@ export interface EvidenceClaim {
   text: string;
   evidenceIds: string[];
   versionScope: string;
+  scope: { level: ClaimScopeLevel; label: string };
+  prerequisiteClaimIds: string[];
   topic: EvidenceTopic;
   reasoningNote: string | null;
 }
@@ -79,10 +84,24 @@ export interface AnalysisItem {
   category: AnalysisCategory;
   title: string;
   summary: string;
+  summaryClaimIds: string[];
+  explanation: string;
+  explanationClaimIds: string[];
+  listeningCues: ListeningCue[];
   claims: EvidenceClaim[];
   unknowns: string[];
   expandable: boolean;
   studioPotential: StudioPotential;
+}
+export interface ListeningCue {
+  text: string;
+  claimIds: string[];
+  scope: "recording" | "source_version" | "general";
+}
+export interface AnalysisCoverage {
+  category: "culture" | "harmony" | "rhythm" | "timbre";
+  status: CoverageStatus;
+  moduleIds: string[];
 }
 export interface OverviewExpression {
   text: string;
@@ -98,6 +117,8 @@ export interface SongAnalysis {
     pro: OverviewExpression;
   };
   modules: AnalysisItem[];
+  coverage: AnalysisCoverage[];
+  completionStatus: CompletionStatus;
   sources: EvidenceSource[];
   unknowns: string[];
 }
@@ -137,7 +158,7 @@ export interface DeepDive {
   listeningCues: Array<{
     text: string;
     claimIds: string[];
-    scope: "recording" | "general";
+    scope: "recording" | "source_version" | "general";
   }>;
   studio: {
     eligible: boolean;
@@ -150,15 +171,26 @@ export interface EvidenceReview {
   claims: Array<{
     claimId: string;
     verdict: "supports" | "insufficient" | "conflicts";
+    applicability: "recording" | "work" | "source_version" | "general" | "unresolved";
     reason: string;
   }>;
-  expressions: Record<"hook" | "emo" | "hype" | "pro", boolean>;
-  identitySupported: boolean;
+  identityFields: Array<{
+    field: "title" | "artist" | "album" | "releaseYear" | "musicBrainzRecordingId" | "musicBrainzWorkId" | "musicBrainzReleaseId";
+    verdict: "supports" | "insufficient" | "conflicts";
+    reason: string;
+    evidenceIds: string[];
+  }>;
+  recordingIdentity: "resolved" | "ambiguous" | "unresolved";
+  texts: Array<{
+    textId: string;
+    verdict: "supports" | "insufficient" | "conflicts";
+    reason: string;
+  }>;
   transcriptionSupported: boolean;
 }
 export interface StoredAnalysis {
   evidenceReview?: EvidenceReview | null;
-  schemaVersion: "1.1";
+  schemaVersion: "1.1" | "1.2";
   analysisId: string;
   createdAt: string;
   persistent: boolean;

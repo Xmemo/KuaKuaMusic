@@ -1,106 +1,38 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "MusicLearning2026 analysis draft",
+  "title": "MusicLearning2026 analysis writing review v1.2",
   "type": "object",
   "additionalProperties": false,
   "required": [
-    "song",
-    "userPerception",
-    "overallVibe",
-    "modules",
-    "coverage",
-    "completionStatus",
-    "unknowns"
+    "texts"
   ],
   "properties": {
-    "song": {
-      "$ref": "#/$defs/song"
-    },
-    "userPerception": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "overallVibe": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "hook",
-        "emo",
-        "hype",
-        "pro"
-      ],
-      "properties": {
-        "hook": {
-          "$ref": "#/$defs/expression"
-        },
-        "emo": {
-          "$ref": "#/$defs/expression"
-        },
-        "hype": {
-          "$ref": "#/$defs/expression"
-        },
-        "pro": {
-          "$ref": "#/$defs/expression"
-        }
-      }
-    },
-    "modules": {
-      "type": "array",
-      "items": {
-        "$ref": "#/$defs/module"
-      }
-    },
-    "coverage": {
+    "texts": {
       "type": "array",
       "items": {
         "type": "object",
         "additionalProperties": false,
         "required": [
-          "category",
-          "status",
-          "moduleIds"
+          "textId",
+          "verdict",
+          "reason"
         ],
         "properties": {
-          "category": {
+          "textId": {
+            "type": "string"
+          },
+          "verdict": {
             "type": "string",
             "enum": [
-              "culture",
-              "harmony",
-              "rhythm",
-              "timbre"
+              "supports",
+              "insufficient",
+              "conflicts"
             ]
           },
-          "status": {
-            "type": "string",
-            "enum": [
-              "analyzed",
-              "guidance_only",
-              "insufficient"
-            ]
-          },
-          "moduleIds": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
+          "reason": {
+            "type": "string"
           }
         }
-      }
-    },
-    "completionStatus": {
-      "type": "string",
-      "enum": [
-        "complete",
-        "partial",
-        "insufficient"
-      ]
-    },
-    "unknowns": {
-      "type": "array",
-      "items": {
-        "type": "string"
       }
     }
   },

@@ -4,6 +4,7 @@ import crypto from "node:crypto";
 import { build } from "esbuild";
 import { JSDOM, VirtualConsole } from "jsdom";
 import { analysisFixture, diveFixture } from "./fixtures/music-learning.mjs";
+import { normalizeLegacyPackage } from "../server/evidenceStore.mjs";
 const built = await build({
   stdin: {
     contents:
@@ -29,7 +30,7 @@ async function until(check) {
   }
   throw new Error("UI state did not settle");
 }
-function harness({ empty = false, failAnalysisNumber = 0, songs = [{ title: "测试歌曲", artist: "测试艺人" }] } = {}) {
+function harness({ empty = false, failAnalysisNumber = 0, deepDiveProgress = false, analysisProgress = false, sourceVersionCues = false, legacyHistory = false, songs = [{ title: "测试歌曲", artist: "测试艺人" }] } = {}) {
   const errors = [],
     console = new VirtualConsole();
   console.on("jsdomError", (e) => errors.push(e.message));
@@ -43,8 +44,29 @@ function harness({ empty = false, failAnalysisNumber = 0, songs = [{ title: "测
     },
   );
   const { window } = dom;
+  window.TextDecoder = TextDecoder;
+  window.TextEncoder = TextEncoder;
   let pkg = null,
-    finishProposal = null;
+    finishProposal = null,
+    finishDeepDive = null,
+    finishAnalysis = null;
+  if (legacyHistory) {
+    const analysis = analysisFixture();
+    delete analysis.coverage;
+    delete analysis.completionStatus;
+    pkg = {
+      schemaVersion: "1.1",
+      analysisId: crypto.randomUUID(),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      persistent: true,
+      analysis,
+      evidenceReview: { claims: [], expressions: [], identitySupported: [], transcriptionSupported: false },
+      sources: analysis.sources,
+      deepDives: [],
+      studioSessions: [],
+    };
+  }
   const analysisRequests = [];
   window.AbortController = globalThis.AbortController;
   window.crypto.randomUUID = crypto.randomUUID;
@@ -71,12 +93,38 @@ function harness({ empty = false, failAnalysisNumber = 0, songs = [{ title: "测
     else if (url.pathname === "/api/agent/analyze") {
       analysisRequests.push(data);
       if (analysisRequests.length === failAnalysisNumber)
-        return { ok: false, status: 502, json: async () => ({ error: "合成研究失败" }) };
+        return { ok: false, status: 502, headers: { get: () => "application/json" }, json: async () => ({ error: "合成研究失败" }) };
+      if (analysisProgress) {
+        return {
+          ok: true,
+          status: 200,
+          headers: { get: (name) => name.toLowerCase() === "content-type" ? "text/event-stream" : null },
+          body: new ReadableStream({
+            start(stream) {
+              const encode = (event, payload) => new TextEncoder().encode(`event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`);
+              stream.enqueue(encode("progress", { stage: "compose", round: 2, label: "正在撰写三种概括和分模块解释" }));
+              finishAnalysis = () => {
+                const analysis = analysisFixture();
+                const now = new Date().toISOString();
+                pkg = { schemaVersion: "1.2", analysisId: crypto.randomUUID(), createdAt: now, updatedAt: now, persistent: true, analysis, sources: analysis.sources, deepDives: [], studioSessions: [] };
+                stream.enqueue(encode("result", pkg));
+                stream.close();
+              };
+            },
+          }),
+        };
+      }
       const analysis = analysisFixture();
       analysis.userPerception = data.userPerception || null;
+      if (sourceVersionCues) {
+        analysis.modules[0].claims[0].scope = { level: "source_version", label: analysis.song.versionScope };
+        analysis.modules[0].listeningCues = analysis.modules[0].listeningCues.map((cue) => ({ ...cue, scope: "source_version" }));
+      }
       if (empty) {
         analysis.modules = [];
         analysis.song.identityStatus = "unresolved";
+        analysis.coverage = analysis.coverage.map((item) => ({ ...item, status: "insufficient", moduleIds: [] }));
+        analysis.completionStatus = "insufficient";
       }
       const now = new Date().toISOString();
       pkg = {
@@ -99,6 +147,24 @@ function harness({ empty = false, failAnalysisNumber = 0, songs = [{ title: "测
         question: data.question,
         deepDive: diveFixture(data.analysisItemId),
       };
+      if (deepDiveProgress) {
+        return {
+          ok: true,
+          status: 200,
+          headers: { get: (name) => name.toLowerCase() === "content-type" ? "text/event-stream" : null },
+          body: new ReadableStream({
+            start(stream) {
+              const encode = (event, payload) => new TextEncoder().encode(`event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`);
+              stream.enqueue(encode("progress", { stage: "draft", round: 1, label: "正在整理深挖判断" }));
+              finishDeepDive = () => {
+                pkg.deepDives.push(dive);
+                stream.enqueue(encode("result", dive));
+                stream.close();
+              };
+            },
+          }),
+        };
+      }
       pkg.deepDives.push(dive);
       value = dive;
     } else if (url.pathname.endsWith("/studio")) {
@@ -110,8 +176,9 @@ function harness({ empty = false, failAnalysisNumber = 0, songs = [{ title: "测
       return new Promise((resolve) => {
         finishProposal = () =>
           resolve({
-            ok: true,
-            status: 200,
+              ok: true,
+              status: 200,
+              headers: { get: () => "application/json" },
             json: async () => ({
               baseRevisionId: data.baseRevisionId,
               code: 's("hh*16")',
@@ -120,9 +187,9 @@ function harness({ empty = false, failAnalysisNumber = 0, songs = [{ title: "测
             }),
           });
       });
-    } else if (url.pathname.startsWith("/api/agent/analyses/")) value = pkg;
+    } else if (url.pathname.startsWith("/api/agent/analyses/")) value = pkg?.schemaVersion === "1.1" ? normalizeLegacyPackage(pkg) : pkg;
     else throw new Error("Unexpected fixture endpoint " + url.pathname);
-    return { ok: true, status: 200, json: async () => structuredClone(value) };
+    return { ok: true, status: 200, headers: { get: () => "application/json" }, json: async () => structuredClone(value) };
   };
   const document = window.document;
   const button = (name) =>
@@ -153,6 +220,8 @@ function harness({ empty = false, failAnalysisNumber = 0, songs = [{ title: "测
     errors,
     pkg: () => pkg,
     resolveProposal: () => finishProposal?.(),
+    finishDeepDive: () => finishDeepDive?.(),
+    finishAnalysis: () => finishAnalysis?.(),
     proposalPending: () => !!finishProposal,
   };
 }
@@ -165,6 +234,45 @@ async function selectSong(ui) {
   ui.document.querySelector(".song-choice").click();
   await until(() => ui.document.querySelector(".overview"));
 }
+test("deep-dive progress events remain visible while the result is still running", async () => {
+  const ui = harness({ deepDiveProgress: true });
+  try {
+    await selectSong(ui);
+    ui.button("深入理解这个细节").click();
+    await until(() => ui.document.querySelector(".busy")?.textContent.includes("正在整理深挖判断"));
+    assert.match(ui.document.querySelector(".busy").textContent, /研究阶段 · 单点深挖/);
+    assert.ok(ui.button("取消研究"));
+    ui.finishDeepDive();
+    await until(() => ui.document.querySelector("#pattern"));
+    assert.deepEqual(ui.errors, []);
+  } finally { ui.dom.window.close(); }
+});
+test("round-two writing progress is shown as analysis, not as a supplement round", async () => {
+  const ui = harness({ analysisProgress: true });
+  try {
+    await until(() => ui.document.getElementById("song-query"));
+    ui.fill("song-query", "测试歌曲");
+    await until(() => !ui.button("搜索歌曲").disabled);
+    ui.button("搜索歌曲").click();
+    await until(() => ui.document.querySelector(".song-choice"));
+    ui.document.querySelector(".song-choice").click();
+    await until(() => ui.document.querySelector(".busy")?.textContent.includes("正在撰写三种概括"));
+    assert.match(ui.document.querySelector(".busy").textContent, /研究阶段 · 分析整理/);
+    assert.doesNotMatch(ui.document.querySelector(".busy").textContent, /研究阶段 · 补检轮/);
+    ui.finishAnalysis();
+    await until(() => ui.document.querySelector(".overview"));
+    assert.deepEqual(ui.errors, []);
+  } finally { ui.dom.window.close(); }
+});
+test("source-version listening cues are visibly attributed to that source version", async () => {
+  const ui = harness({ sourceVersionCues: true });
+  try {
+    await selectSong(ui);
+    assert.match(ui.document.querySelector(".listening-cues").textContent, /来源版本听歌线索/);
+    assert.equal(ui.document.querySelectorAll(".listening-cues .tag").length, 1);
+    assert.deepEqual(ui.errors, []);
+  } finally { ui.dom.window.close(); }
+});
 test("DOM search exposes all returned candidates beyond the first page", async () => {
   const songs = Array.from({ length: 50 }, (_, index) => ({
     id: String(index), title: "测试歌曲 " + index, artist: "测试艺人",
@@ -207,10 +315,32 @@ test("a new research after restoring history sends no stale question and a failu
     assert.deepEqual(ui.errors, []);
   } finally { ui.dom.window.close(); }
 });
+test("DOM flow: legacy 1.1 history with legacy review fields restores without crashing", async () => {
+  const ui = harness({ legacyHistory: true });
+  try {
+    await until(() => ui.document.querySelector("details.history .history-item"));
+    ui.document.querySelector("details.history").open = true;
+    ui.document.querySelector(".history-item").click();
+    await until(() => ui.document.querySelector(".overview"));
+    assert.match(ui.document.body.textContent, /四个核心音乐维度|文化与背景/);
+    assert.deepEqual(ui.errors, []);
+  } finally { ui.dom.window.close(); }
+});
 test("DOM flow: selected-item deep dive, manual preview protection, saved tempo restoration, and AI cannot overwrite a new draft", async () => {
   const ui = harness();
   try {
     await selectSong(ui);
+    assert.equal(ui.document.querySelectorAll(".core-dimension").length, 4);
+    assert.match(ui.document.querySelector(".core-dimension").textContent, /资料不足|已有解读|听歌指导/);
+    assert.equal(ui.document.querySelectorAll(".mode-tabs button").length, 3);
+    const overviewTexts = [...ui.document.querySelectorAll(".mode-tabs button")].map((button) => {
+      const key = button.textContent === "走心" ? "emo" : button.textContent === "上头" ? "hype" : "pro";
+      return ui.pkg().analysis.overallVibe[key].text;
+    });
+    assert.equal(new Set(overviewTexts).size, 3);
+    assert.match(ui.document.querySelector(".module-summary").textContent, /踩镲/);
+    assert.match(ui.document.querySelector(".module-explanation").textContent, /稳定关系/);
+    assert.match(ui.document.querySelector(".listening-cues").textContent, /跟着底鼓/);
     ui.button("深入理解这个细节").click();
     await until(() => ui.document.getElementById("pattern"));
     ui.fill("pattern", 's("hh*8")');
@@ -276,7 +406,8 @@ test("DOM flow: no song modules still provides a specific-question teaching expe
   const ui = harness({ empty: true });
   try {
     await selectSong(ui);
-    assert.match(ui.document.body.textContent, /暂时没有足够资料/);
+    assert.match(ui.document.body.textContent, /资料不足/);
+    assert.equal(ui.document.querySelectorAll(".core-dimension").length, 4);
     ui.fill("explore-question", "如何比较节奏密度？");
     await until(() => !ui.button("探索这个问题").disabled);
     ui.button("探索这个问题").click();

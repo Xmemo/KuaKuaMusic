@@ -1,12 +1,13 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "MusicLearning2026 source-specific review",
+  "title": "MusicLearning2026 source-specific review v1.2",
   "type": "object",
   "additionalProperties": false,
   "required": [
     "claims",
-    "expressions",
-    "identitySupported",
+    "identityFields",
+    "recordingIdentity",
+    "texts",
     "transcriptionSupported"
   ],
   "properties": {
@@ -18,10 +19,101 @@
         "required": [
           "claimId",
           "verdict",
+          "applicability",
           "reason"
         ],
         "properties": {
           "claimId": {
+            "type": "string"
+          },
+          "verdict": {
+            "type": "string",
+            "enum": [
+              "supports",
+              "insufficient",
+              "conflicts"
+            ]
+          },
+          "applicability": {
+            "type": "string",
+            "enum": [
+              "recording",
+              "work",
+              "source_version",
+              "general",
+              "unresolved"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "identityFields": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "field",
+          "verdict",
+          "reason",
+          "evidenceIds"
+        ],
+        "properties": {
+          "field": {
+            "type": "string",
+            "enum": [
+              "title",
+              "artist",
+              "album",
+              "releaseYear",
+              "musicBrainzRecordingId",
+              "musicBrainzWorkId",
+              "musicBrainzReleaseId"
+            ]
+          },
+          "verdict": {
+            "type": "string",
+            "enum": [
+              "supports",
+              "insufficient",
+              "conflicts"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          },
+          "evidenceIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "recordingIdentity": {
+      "type": "string",
+      "enum": [
+        "resolved",
+        "ambiguous",
+        "unresolved"
+      ]
+    },
+    "texts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "textId",
+          "verdict",
+          "reason"
+        ],
+        "properties": {
+          "textId": {
             "type": "string"
           },
           "verdict": {
@@ -37,33 +129,6 @@
           }
         }
       }
-    },
-    "expressions": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "hook",
-        "emo",
-        "hype",
-        "pro"
-      ],
-      "properties": {
-        "hook": {
-          "type": "boolean"
-        },
-        "emo": {
-          "type": "boolean"
-        },
-        "hype": {
-          "type": "boolean"
-        },
-        "pro": {
-          "type": "boolean"
-        }
-      }
-    },
-    "identitySupported": {
-      "type": "boolean"
     },
     "transcriptionSupported": {
       "type": "boolean"
@@ -377,6 +442,8 @@
         "text",
         "evidenceIds",
         "versionScope",
+        "scope",
+        "prerequisiteClaimIds",
         "topic",
         "reasoningNote"
       ],
@@ -414,6 +481,34 @@
         },
         "versionScope": {
           "type": "string"
+        },
+        "scope": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "level",
+            "label"
+          ],
+          "properties": {
+            "level": {
+              "type": "string",
+              "enum": [
+                "recording",
+                "work",
+                "source_version",
+                "general"
+              ]
+            },
+            "label": {
+              "type": "string"
+            }
+          }
+        },
+        "prerequisiteClaimIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         },
         "topic": {
           "type": "string",
@@ -455,6 +550,34 @@
         }
       }
     },
+    "listeningCue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "text",
+        "claimIds",
+        "scope"
+      ],
+      "properties": {
+        "text": {
+          "type": "string"
+        },
+        "claimIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "scope": {
+          "type": "string",
+          "enum": [
+            "recording",
+            "source_version",
+            "general"
+          ]
+        }
+      }
+    },
     "module": {
       "type": "object",
       "additionalProperties": false,
@@ -463,6 +586,10 @@
         "category",
         "title",
         "summary",
+        "summaryClaimIds",
+        "explanation",
+        "explanationClaimIds",
+        "listeningCues",
         "claims",
         "unknowns",
         "expandable",
@@ -489,6 +616,27 @@
         },
         "summary": {
           "type": "string"
+        },
+        "summaryClaimIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "explanation": {
+          "type": "string"
+        },
+        "explanationClaimIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "listeningCues": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/listeningCue"
+          }
         },
         "claims": {
           "type": "array",

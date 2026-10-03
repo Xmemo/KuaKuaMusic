@@ -43,7 +43,10 @@ function validateClaims(claims, index, song, used = new Set()) {
     if (claim.kind === "external_evidence")
       invariant(claim.evidenceIds.length > 0, "歌曲事实缺少支撑片段。");
     if (claim.kind === "general_theory")
-      invariant(claim.versionScope === "general", "通用理论必须标为 general。");
+      invariant(claim.versionScope === "general" && claim.scope.level === "general", "通用理论必须标为 general。");
+    invariant(claim.scope.label.trim(), "判断必须说明适用对象。");
+    if (claim.kind === "external_evidence")
+      invariant(claim.scope.level !== "general", "外部事实必须标明来源适用对象。");
     for (const id of claim.evidenceIds) {
       const excerpt = index.excerpts.get(id);
       invariant(excerpt, "判断引用的支撑片段不存在。");
@@ -51,27 +54,35 @@ function validateClaims(claims, index, song, used = new Set()) {
         excerpt.topics.includes(claim.topic),
         "片段的支持范围不包含该判断。",
       );
-      invariant(
-        claim.versionScope === "general" ||
-          excerpt.source.versionScope === claim.versionScope,
-        "资料与判断的版本范围不匹配。",
-      );
+      if (claim.scope.level !== "general")
+        invariant(excerpt.source.versionScope === claim.versionScope, "资料与判断的版本范围不匹配。");
     }
-    if (
-      claim.kind === "external_evidence" &&
-      claim.topic !== "identity" &&
-      claim.versionScope !== "general"
-    ) {
+    if (claim.scope.level === "recording" && claim.topic !== "identity") {
       invariant(
         song.identityStatus === "resolved",
-        "版本未确定时不能确认歌曲专属技术判断。",
+        "录音版本未确定时不能确认录音专属判断。",
       );
       invariant(
-        claim.versionScope === song.versionScope,
-        "判断不适用于当前选择的版本。",
+        claim.versionScope === song.versionScope && claim.scope.label === song.versionScope,
+        "判断不适用于当前录音版本。",
       );
     }
+    if (claim.scope.level === "work")
+      invariant(claim.versionScope !== "general", "作品判断必须保留来源范围。");
+    if (claim.scope.level === "source_version")
+      invariant(claim.scope.label === claim.versionScope, "来源版本判断必须显示来源所述范围。");
   }
+  for (const claim of claims)
+    for (const id of claim.prerequisiteClaimIds)
+      invariant(used.has(id) && id !== claim.id, "判断引用的前提不存在。");
+  const claimById = new Map(claims.map((claim) => [claim.id, claim]));
+  for (const claim of claims)
+    if (claim.kind === "ai_interpretation")
+      invariant(
+        claim.prerequisiteClaimIds.length > 0 &&
+          claim.prerequisiteClaimIds.every((id) => claimById.has(id)),
+        "解释与推断必须指明其依据。",
+      );
   return used;
 }
 export function validateSongAnalysisIntegrity(analysis, registry = []) {
@@ -93,17 +104,18 @@ export function validateSongAnalysisIntegrity(analysis, registry = []) {
     );
     moduleIds.add(module.id);
     invariant(module.claims.length > 0, "分析点必须包含判断或通用理论。");
-    validateClaims(module.claims, index, analysis.song, used);
-    // The rendered summary cannot introduce an extra factual paragraph.
-    invariant(
-      module.summary ===
-        module.claims
-          .slice(0, 2)
-          .map((c) => c.text)
-          .join("\n"),
-      "模块摘要必须由已有判断组成。",
-    );
+    for (const id of [...module.summaryClaimIds, ...module.explanationClaimIds])
+      invariant(module.claims.some((claim) => claim.id === id), "模块说明引用了其他模块或不存在的判断。");
+    for (const cue of module.listeningCues) {
+      for (const id of cue.claimIds)
+        invariant(module.claims.some((claim) => claim.id === id), "听歌线索引用了不存在的模块判断。");
+      if (cue.scope === "recording")
+        invariant(cue.claimIds.some((id) => module.claims.some((claim) => claim.id === id && claim.scope.level === "recording")), "录音听歌线索需要录音范围的依据。");
+      if (cue.scope === "source_version")
+        invariant(cue.claimIds.some((id) => module.claims.some((claim) => claim.id === id && claim.scope.level === "source_version")), "来源版本听歌线索需要来源版本范围的依据。");
+    }
   }
+  validateClaims(analysis.modules.flatMap((module) => module.claims), index, analysis.song, used);
   for (const expression of Object.values(analysis.overallVibe)) {
     for (const id of expression.claimIds)
       invariant(used.has(id), "总体观感引用了不存在的判断。");
@@ -113,6 +125,25 @@ export function validateSongAnalysisIntegrity(analysis, registry = []) {
         "总体观感需要标出解释依据。",
       );
   }
+  const coreCategories = ["culture", "harmony", "rhythm", "timbre"];
+  invariant(analysis.coverage.length === coreCategories.length, "四个核心维度都必须有覆盖状态。");
+  const coverageSeen = new Set();
+  for (const entry of analysis.coverage) {
+    invariant(coreCategories.includes(entry.category) && !coverageSeen.has(entry.category), "核心维度重复或无效。");
+    coverageSeen.add(entry.category);
+    for (const id of entry.moduleIds)
+      invariant(analysis.modules.some((module) => module.id === id && module.category === entry.category && module.claims.some((claim) => claim.topic !== "identity" && ["external_evidence", "ai_interpretation", "user_perception"].includes(claim.kind))), "维度状态引用了不匹配或只有通用理论的模块。");
+    if (entry.status === "analyzed")
+      invariant(entry.moduleIds.some((id) => analysis.modules.find((module) => module.id === id)?.claims.some((claim) => claim.topic !== "identity" && ["external_evidence", "ai_interpretation", "user_perception"].includes(claim.kind))), "纯通用指导或身份资料不能标为已分析。");
+    else invariant(entry.moduleIds.length === 0, "资料不足或听歌指导不能挂载为歌曲分析模块。");
+  }
+  const analyzedDimensions = analysis.coverage.filter((entry) => entry.status === "analyzed").length;
+  invariant(
+    (analysis.completionStatus === "complete" && analyzedDimensions === 4) ||
+      (analysis.completionStatus === "partial" && analyzedDimensions > 0) ||
+      (analysis.completionStatus === "insufficient" && analyzedDimensions === 0),
+    "分析完成状态与四维覆盖不匹配。",
+  );
   return analysis;
 }
 export function validateDeepDiveIntegrity(
@@ -143,6 +174,11 @@ export function validateDeepDiveIntegrity(
         "原曲聆听提示需要歌曲专属依据。",
       );
     }
+    if (cue.scope === "source_version")
+      invariant(
+        cue.claimIds.some((id) => deepDive.claims.find((claim) => claim.id === id)?.scope.level === "source_version"),
+        "来源版本聆听提示需要来源版本范围的依据。",
+      );
   }
   const { studio } = deepDive;
   if (!studio.eligible) {

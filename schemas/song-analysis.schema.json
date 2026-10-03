@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "MusicLearning2026 SongAnalysis v1.1",
+  "title": "MusicLearning2026 SongAnalysis v1.2",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -8,6 +8,8 @@
     "userPerception",
     "overallVibe",
     "modules",
+    "coverage",
+    "completionStatus",
     "unknowns",
     "sources"
   ],
@@ -50,6 +52,51 @@
       "items": {
         "$ref": "#/$defs/module"
       }
+    },
+    "coverage": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "category",
+          "status",
+          "moduleIds"
+        ],
+        "properties": {
+          "category": {
+            "type": "string",
+            "enum": [
+              "culture",
+              "harmony",
+              "rhythm",
+              "timbre"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "analyzed",
+              "guidance_only",
+              "insufficient"
+            ]
+          },
+          "moduleIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "completionStatus": {
+      "type": "string",
+      "enum": [
+        "complete",
+        "partial",
+        "insufficient"
+      ]
     },
     "unknowns": {
       "type": "array",
@@ -372,6 +419,8 @@
         "text",
         "evidenceIds",
         "versionScope",
+        "scope",
+        "prerequisiteClaimIds",
         "topic",
         "reasoningNote"
       ],
@@ -409,6 +458,34 @@
         },
         "versionScope": {
           "type": "string"
+        },
+        "scope": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "level",
+            "label"
+          ],
+          "properties": {
+            "level": {
+              "type": "string",
+              "enum": [
+                "recording",
+                "work",
+                "source_version",
+                "general"
+              ]
+            },
+            "label": {
+              "type": "string"
+            }
+          }
+        },
+        "prerequisiteClaimIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         },
         "topic": {
           "type": "string",
@@ -450,6 +527,34 @@
         }
       }
     },
+    "listeningCue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "text",
+        "claimIds",
+        "scope"
+      ],
+      "properties": {
+        "text": {
+          "type": "string"
+        },
+        "claimIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "scope": {
+          "type": "string",
+          "enum": [
+            "recording",
+            "source_version",
+            "general"
+          ]
+        }
+      }
+    },
     "module": {
       "type": "object",
       "additionalProperties": false,
@@ -458,6 +563,10 @@
         "category",
         "title",
         "summary",
+        "summaryClaimIds",
+        "explanation",
+        "explanationClaimIds",
+        "listeningCues",
         "claims",
         "unknowns",
         "expandable",
@@ -484,6 +593,27 @@
         },
         "summary": {
           "type": "string"
+        },
+        "summaryClaimIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "explanation": {
+          "type": "string"
+        },
+        "explanationClaimIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "listeningCues": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/listeningCue"
+          }
         },
         "claims": {
           "type": "array",

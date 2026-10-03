@@ -95,15 +95,29 @@ const definitions = {
     text,
     evidenceIds: list(text),
     versionScope: text,
+    scope: object({
+      level: choice(["recording", "work", "source_version", "general"]),
+      label: text,
+    }),
+    prerequisiteClaimIds: list(text),
     topic: choice(topics),
     reasoningNote: nullableText,
   }),
   expression: object({ text, claimIds: list(text) }),
+  listeningCue: object({
+    text,
+    claimIds: list(text),
+    scope: choice(["recording", "source_version", "general"]),
+  }),
   module: object({
     id: text,
     category: choice(topics.slice(1)),
     title: text,
     summary: text,
+    summaryClaimIds: list(text),
+    explanation: text,
+    explanationClaimIds: list(text),
+    listeningCues: list(ref("listeningCue")),
     claims: list(ref("claim")),
     unknowns: list(text),
     expandable: { type: "boolean" },
@@ -144,16 +158,23 @@ const definitions = {
     experiment: ref("experiment"),
   }),
 };
+const overallVibe = object({
+  hook: ref("expression"),
+  emo: ref("expression"),
+  hype: ref("expression"),
+  pro: ref("expression"),
+});
 const analysisProperties = {
   song: ref("song"),
   userPerception: nullableText,
-  overallVibe: object({
-    hook: ref("expression"),
-    emo: ref("expression"),
-    hype: ref("expression"),
-    pro: ref("expression"),
-  }),
+  overallVibe,
   modules: list(ref("module")),
+  coverage: list(object({
+    category: choice(["culture", "harmony", "rhythm", "timbre"]),
+    status: choice(["analyzed", "guidance_only", "insufficient"]),
+    moduleIds: list(text),
+  })),
+  completionStatus: choice(["complete", "partial", "insufficient"]),
   unknowns: list(text),
 };
 const deepDiveProperties = {
@@ -167,7 +188,7 @@ const deepDiveProperties = {
     object({
       text,
       claimIds: list(text),
-      scope: choice(["recording", "general"]),
+      scope: choice(["recording", "source_version", "general"]),
     }),
   ),
   studio: object({
@@ -192,22 +213,48 @@ export const contracts = {
     playback: ref("playback"),
     explanation: text,
   }),
-  "evidence-review": schema("MusicLearning2026 source-specific review", {
+  "evidence-review": schema("MusicLearning2026 source-specific review v1.2", {
     claims: list(
       object({
         claimId: text,
         verdict: choice(["supports", "insufficient", "conflicts"]),
+        applicability: choice(["recording", "work", "source_version", "general", "unresolved"]),
         reason: text,
       }),
     ),
-    expressions: object({
-      hook: { type: "boolean" },
-      emo: { type: "boolean" },
-      hype: { type: "boolean" },
-      pro: { type: "boolean" },
-    }),
-    identitySupported: { type: "boolean" },
+    identityFields: list(object({
+      field: choice(["title", "artist", "album", "releaseYear", "musicBrainzRecordingId", "musicBrainzWorkId", "musicBrainzReleaseId"]),
+      verdict: choice(["supports", "insufficient", "conflicts"]),
+      reason: text,
+      evidenceIds: list(text),
+    })),
+    recordingIdentity: choice(["resolved", "ambiguous", "unresolved"]),
+    texts: list(object({
+      textId: text,
+      verdict: choice(["supports", "insufficient", "conflicts"]),
+      reason: text,
+    })),
     transcriptionSupported: { type: "boolean" },
+  }),
+  "analysis-writing": schema("MusicLearning2026 analysis writing v1.2", {
+    overallVibe,
+    modules: list(object({
+      id: text,
+      title: text,
+      titleClaimIds: list(text),
+      summary: text,
+      summaryClaimIds: list(text),
+      explanation: text,
+      explanationClaimIds: list(text),
+      listeningCues: list(ref("listeningCue")),
+    })),
+  }),
+  "writing-review": schema("MusicLearning2026 analysis writing review v1.2", {
+    texts: list(object({
+      textId: text,
+      verdict: choice(["supports", "insufficient", "conflicts"]),
+      reason: text,
+    })),
   }),
   "research-plan": schema("MusicLearning2026 research plan", {
     song: ref("song"),
@@ -219,7 +266,7 @@ export const contracts = {
     "MusicLearning2026 analysis draft",
     analysisProperties,
   ),
-  "song-analysis": schema("MusicLearning2026 SongAnalysis v1.1", {
+  "song-analysis": schema("MusicLearning2026 SongAnalysis v1.2", {
     ...analysisProperties,
     sources: list(ref("source")),
   }),
@@ -227,7 +274,7 @@ export const contracts = {
     "MusicLearning2026 deep dive draft",
     deepDiveProperties,
   ),
-  "deep-dive": schema("MusicLearning2026 DeepDive v1.1", {
+  "deep-dive": schema("MusicLearning2026 DeepDive v1.2", {
     ...deepDiveProperties,
     sources: list(ref("source")),
   }),

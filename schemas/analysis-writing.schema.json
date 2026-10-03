@@ -1,27 +1,13 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "MusicLearning2026 analysis draft",
+  "title": "MusicLearning2026 analysis writing v1.2",
   "type": "object",
   "additionalProperties": false,
   "required": [
-    "song",
-    "userPerception",
     "overallVibe",
-    "modules",
-    "coverage",
-    "completionStatus",
-    "unknowns"
+    "modules"
   ],
   "properties": {
-    "song": {
-      "$ref": "#/$defs/song"
-    },
-    "userPerception": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
     "overallVibe": {
       "type": "object",
       "additionalProperties": false,
@@ -49,58 +35,56 @@
     "modules": {
       "type": "array",
       "items": {
-        "$ref": "#/$defs/module"
-      }
-    },
-    "coverage": {
-      "type": "array",
-      "items": {
         "type": "object",
         "additionalProperties": false,
         "required": [
-          "category",
-          "status",
-          "moduleIds"
+          "id",
+          "title",
+          "titleClaimIds",
+          "summary",
+          "summaryClaimIds",
+          "explanation",
+          "explanationClaimIds",
+          "listeningCues"
         ],
         "properties": {
-          "category": {
-            "type": "string",
-            "enum": [
-              "culture",
-              "harmony",
-              "rhythm",
-              "timbre"
-            ]
+          "id": {
+            "type": "string"
           },
-          "status": {
-            "type": "string",
-            "enum": [
-              "analyzed",
-              "guidance_only",
-              "insufficient"
-            ]
+          "title": {
+            "type": "string"
           },
-          "moduleIds": {
+          "titleClaimIds": {
             "type": "array",
             "items": {
               "type": "string"
             }
+          },
+          "summary": {
+            "type": "string"
+          },
+          "summaryClaimIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "explanation": {
+            "type": "string"
+          },
+          "explanationClaimIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "listeningCues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/listeningCue"
+            }
           }
         }
-      }
-    },
-    "completionStatus": {
-      "type": "string",
-      "enum": [
-        "complete",
-        "partial",
-        "insufficient"
-      ]
-    },
-    "unknowns": {
-      "type": "array",
-      "items": {
-        "type": "string"
       }
     }
   },

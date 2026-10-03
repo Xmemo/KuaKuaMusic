@@ -17,8 +17,8 @@ export function getCodexBridgeConfig() {
     bin: process.env.CODEX_BIN || "codex",
     model: process.env.CODEX_MODEL?.trim() || DEFAULT_RESEARCH_MODEL,
     reasoningEffort: process.env.CODEX_REASONING_EFFORT?.trim() || DEFAULT_REASONING_EFFORT,
-    timeoutMs: positive("CODEX_TIMEOUT_MS", 180000),
-    researchTimeoutMs: positive("CODEX_RESEARCH_TIMEOUT_MS", 360000),
+    timeoutMs: positive("CODEX_TIMEOUT_MS", 360000),
+    researchTimeoutMs: positive("CODEX_RESEARCH_TIMEOUT_MS", 720000),
     maxStdoutBytes: positive("CODEX_MAX_STDOUT_BYTES", 2 * 1024 * 1024),
     maxStderrBytes: positive("CODEX_MAX_STDERR_BYTES", 512 * 1024),
     cwd: REPO_ROOT,
@@ -63,6 +63,11 @@ export function runCodexCommand(
   { prompt, signal, timeoutMs = 5000, maxBytes = 65536 } = {},
 ) {
   const config = getCodexBridgeConfig();
+  const schemaIndex = args.indexOf("--output-schema");
+  const schemaName = schemaIndex >= 0 ? path.basename(args[schemaIndex + 1] || "") : "";
+  const timeoutMessage = schemaName === "research-plan.schema.json"
+    ? "资料检索超时，本次没有保存分析；可以重试。"
+    : "分析步骤响应超时，本次没有保存半成品；可以重试。";
   return new Promise((resolve, reject) => {
     if (signal?.aborted) {
       reject(new AppError("请求已取消。", "CANCELLED", 499));
@@ -95,7 +100,7 @@ export function runCodexCommand(
     const timer = setTimeout(() => {
       stopChild(child);
       finish(
-        new AppError("资料研究超时，请缩小问题或重试。", "AGENT_TIMEOUT", 504),
+        new AppError(timeoutMessage, "AGENT_TIMEOUT", 504),
       );
     }, timeoutMs);
     signal?.addEventListener("abort", abort, { once: true });
