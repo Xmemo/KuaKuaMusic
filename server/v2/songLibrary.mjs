@@ -116,10 +116,21 @@ export function createSongLibrary({
         researchRunIds: [],
         analysisIds: [],
         blueprintIds: [],
+        studioSeedIds: [],
         updatedAt: now,
       };
       await writeJsonAtomic(manifestPath, manifest);
     }
+    manifest = {
+      ...manifest,
+      mediaRevisions: manifest.mediaRevisions || [],
+      observationRunIds: manifest.observationRunIds || [],
+      researchRunIds: manifest.researchRunIds || [],
+      analysisIds: manifest.analysisIds || [],
+      blueprintIds: manifest.blueprintIds || [],
+      studioSeedIds: manifest.studioSeedIds || [],
+    };
+    await writeJsonAtomic(manifestPath, manifest);
     await writeJsonAtomic(path.join(dir, "identity.json"), song);
     return { dir, song, manifest };
   }
@@ -276,6 +287,24 @@ export function createSongLibrary({
     return readJson(path.join(songDir(songId), "creative", id + ".json"));
   }
 
+  async function saveStudioSeed(songId, seed) {
+    assertId(seed.studioSeedId, "studioSeedId");
+    await writeJsonAtomic(
+      path.join(songDir(songId), "studio", seed.studioSeedId + ".json"),
+      seed,
+    );
+    return appendManifestId(songId, "studioSeedIds", seed.studioSeedId);
+  }
+
+  async function loadStudioSeed(songId, studioSeedId = null) {
+    const manifest = await loadManifest(songId);
+    const id = assertId(
+      studioSeedId || latestId(manifest.studioSeedIds || [], "Studio Seed"),
+      "studioSeedId",
+    );
+    return readJson(path.join(songDir(songId), "studio", id + ".json"));
+  }
+
   return Object.freeze({
     root: libraryRoot,
     canonicalizeSong,
@@ -292,5 +321,7 @@ export function createSongLibrary({
     loadAnalysis,
     saveBlueprint,
     loadBlueprint,
+    saveStudioSeed,
+    loadStudioSeed,
   });
 }
