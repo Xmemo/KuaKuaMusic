@@ -129,6 +129,8 @@ export function createStructuredTextProvider(
         prompt,
         outputSchema: schemaPath("schemas/" + schemaName + ".schema.json"),
         signal,
+        model: selection.model,
+        researchEnabled: false,
       });
       return validateContract(schemaName, value);
     }
