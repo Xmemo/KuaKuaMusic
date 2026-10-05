@@ -21,16 +21,80 @@
       ],
       "properties": {
         "hook": {
-          "type": "string"
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "text",
+            "interpretationIds"
+          ],
+          "properties": {
+            "text": {
+              "type": "string"
+            },
+            "interpretationIds": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
         },
         "emo": {
-          "type": "string"
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "text",
+            "interpretationIds"
+          ],
+          "properties": {
+            "text": {
+              "type": "string"
+            },
+            "interpretationIds": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
         },
         "hype": {
-          "type": "string"
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "text",
+            "interpretationIds"
+          ],
+          "properties": {
+            "text": {
+              "type": "string"
+            },
+            "interpretationIds": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
         },
         "pro": {
-          "type": "string"
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "text",
+            "interpretationIds"
+          ],
+          "properties": {
+            "text": {
+              "type": "string"
+            },
+            "interpretationIds": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
         }
       }
     },
