@@ -12,6 +12,7 @@
     "researchRunIds",
     "analysisIds",
     "blueprintIds",
+    "studioSeedIds",
     "updatedAt"
   ],
   "properties": {
@@ -128,6 +129,12 @@
     },
     "updatedAt": {
       "type": "string"
+    },
+    "studioSeedIds": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
     }
   }
 }
