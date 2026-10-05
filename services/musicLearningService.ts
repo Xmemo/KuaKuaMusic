@@ -7,7 +7,7 @@ import type {
   StoredDeepDive,
 } from "../music-learning/types";
 import type { StudioProposal, StudioSession } from "../studio/strudelStudio";
-const BASE = (import.meta.env.VITE_BACKEND_API_BASE_URL || "").replace(
+const BASE = (import.meta.env?.VITE_BACKEND_API_BASE_URL || "").replace(
   /\/$/,
   "",
 );
