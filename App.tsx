@@ -559,11 +559,21 @@ function MusicLearningApp() {
     </div>
   );
 }
+const V2App =
+  import.meta.env.VITE_MUSIC_V2_ENABLED === "1"
+    ? React.lazy(() => import("./V2App"))
+    : null;
 const LegacyApp =
   import.meta.env.VITE_ENABLE_LEGACY_UI === "1"
     ? React.lazy(() => import("./LegacyApp"))
     : null;
 export default function App() {
+  if (V2App)
+    return (
+      <React.Suspense fallback={<p>正在加载 Audio-first v2</p>}>
+        <V2App />
+      </React.Suspense>
+    );
   if (LegacyApp && new URLSearchParams(location.search).get("legacy") === "1")
     return (
       <React.Suspense fallback={<p>正在加载旧版页面</p>}>
