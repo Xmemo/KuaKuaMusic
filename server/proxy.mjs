@@ -147,6 +147,24 @@ export function createApp({
         v2.listen(body, context),
       ),
     );
+    app.post(
+      "/api/agent/v2/research",
+      researchRoute(async (body, context) =>
+        v2.research(body, context),
+      ),
+    );
+    app.post(
+      "/api/agent/v2/critic",
+      researchRoute(async (body, context) =>
+        v2.critic(body, context),
+      ),
+    );
+    app.post(
+      "/api/agent/v2/creative",
+      researchRoute(async (body, context) =>
+        v2.creative(body, context),
+      ),
+    );
   }
   app.post("/api/agent/analyze", researchRoute(analyze));
   app.post("/api/agent/deep-dive", researchRoute(deepDive));
