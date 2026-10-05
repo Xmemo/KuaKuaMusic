@@ -4,6 +4,10 @@ import { createSongLibrary } from "./songLibrary.mjs";
 import { createYouTubeAudioProvider } from "./youtubeAudioProvider.mjs";
 import { createDashScopeAudioProvider } from "./dashscopeAudioProvider.mjs";
 import { runProcess } from "./processRunner.mjs";
+import { createResearchPass } from "./researchPass.mjs";
+import { createCriticPass } from "./criticPass.mjs";
+import { createCreativePass } from "./creativePass.mjs";
+import { creativeBlueprintToStrudelPlan } from "./creativeStrudelBridge.mjs";
 
 export function createV2Service({
   env = process.env,
@@ -15,6 +19,22 @@ export function createV2Service({
     root: env.MUSIC_LIBRARY_DIR,
   });
   const youtube = createYouTubeAudioProvider({ env, runner });
+  const researchPass = createResearchPass({
+    selection: providerPlan.research,
+    backendName: providerPlan.research.backend,
+    env,
+    fetcher,
+  });
+  const criticPass = createCriticPass({
+    selection: providerPlan.critic,
+    env,
+    fetcher,
+  });
+  const creativePass = createCreativePass({
+    selection: providerPlan.creative,
+    env,
+    fetcher,
+  });
 
   function listenProvider(selection) {
     if (selection.provider === "dashscope") {
@@ -141,10 +161,95 @@ export function createV2Service({
     return observation;
   }
 
+  async function research(
+    { songId } = {},
+    { signal, onProgress } = {},
+  ) {
+    if (!songId) {
+      throw new AppError("songId 不能为空。", "V2_INVALID_ID", 400);
+    }
+    const manifest = await library.loadManifest(songId);
+    const result = await researchPass.run(manifest.song, {
+      signal,
+      onProgress,
+    });
+    await library.saveResearch(songId, result.artifact, result.sources);
+    return result;
+  }
+
+  async function optionalArtifact(loader) {
+    try {
+      return await loader();
+    } catch (error) {
+      if (error instanceof AppError && error.code === "V2_ARTIFACT_NOT_READY")
+        return null;
+      throw error;
+    }
+  }
+
+  async function critic(
+    { songId, listenRunId = null, researchRunId = null } = {},
+    { signal, onProgress } = {},
+  ) {
+    if (!songId) {
+      throw new AppError("songId 不能为空。", "V2_INVALID_ID", 400);
+    }
+    const manifest = await library.loadManifest(songId);
+    const observation = await optionalArtifact(() =>
+      library.loadObservation(songId, listenRunId),
+    );
+    const researchRecord = await optionalArtifact(() =>
+      library.loadResearch(songId, researchRunId),
+    );
+    const analysis = await criticPass.run(manifest.song, {
+      observation,
+      research: researchRecord?.artifact || null,
+      sources: researchRecord?.sources || [],
+      signal,
+      onProgress,
+    });
+    await library.saveAnalysis(songId, analysis);
+    return {
+      analysis,
+      observation,
+      research: researchRecord?.artifact || null,
+      sources: researchRecord?.sources || [],
+    };
+  }
+
+  async function creative(
+    { songId, analysisId = null, listenRunId = null } = {},
+    { signal, onProgress } = {},
+  ) {
+    if (!songId) {
+      throw new AppError("songId 不能为空。", "V2_INVALID_ID", 400);
+    }
+    const manifest = await library.loadManifest(songId);
+    const analysis = await library.loadAnalysis(songId, analysisId);
+    const observation = await library.loadObservation(
+      songId,
+      listenRunId || analysis.listenRunId,
+    );
+    const blueprint = await creativePass.run(manifest.song, {
+      observation,
+      analysis,
+      signal,
+      onProgress,
+    });
+    await library.saveBlueprint(songId, blueprint);
+    return {
+      blueprint,
+      strudelPlan: creativeBlueprintToStrudelPlan(blueprint),
+    };
+  }
+
   return Object.freeze({
     providerPlan: () => providerHealthSummary(providerPlan),
     materialize,
     listen,
+    research,
+    critic,
+    creative,
     libraryRoot: library.root,
   });
 }
