@@ -2,13 +2,25 @@
 
 **输入歌曲 → 有依据的结构化分析 → 选择一个分析点深入了解 → Strudel Studio 实验。**
 
-产品基线仍是 [PRD v0.3 冻结版](docs/MUSICLEARNING2026_PRD_V0.3_FROZEN.md)。当前分析实现规则见 [技术架构 v1.2](docs/TECHNICAL_ARCHITECTURE_V1.2.md)，底层服务与保存边界见 [技术架构 v1.1](docs/TECHNICAL_ARCHITECTURE_V1.1.md)。
+产品基线仍是 [PRD v0.3 冻结版](docs/MUSICLEARNING2026_PRD_V0.3_FROZEN.md)。**目标架构已升级为 [Audio-first v2.0](docs/TECHNICAL_ARCHITECTURE_V2.md)**：歌曲将先实体化为本地 Song Package，由可替换的 Audio Provider 独立 Listen，再独立 Research，最后 Critic 综合并生成可映射到 Strudel 的 Creative Blueprint。
 
-默认页面会始终显示文化、和声、律动、音色四个入口，分别标明已有解读、通用听歌指导或资料不足；支持来源范围标签、逐模块解释、折叠引用、具体问题深挖、研究历史和 Studio A/B 实验。走心 / 上头 / 懂行分别生成并审核，共用最终有效判断。
+> 迁移状态：v2.0 已冻结并开始搭骨架；当前默认 `/api/agent/analyze` 仍运行 v1.2，直到真实音频链路在本机验收通过。v1.2 文档见 [技术架构 v1.2](docs/TECHNICAL_ARCHITECTURE_V1.2.md)，底层服务与保存边界见 [v1.1](docs/TECHNICAL_ARCHITECTURE_V1.1.md)。
+
+## v2.0 目标流水线
+
+```
+Search → Materialize → Listen → Research → Critic → Deep Dive
+                                              ↓
+                                      Creative Blueprint
+                                              ↓
+                                      Strudel Experiment
+```
+
+v2 不把 Qwen、SiliconFlow 或 Codex 写死进业务层。Listen / Research / Critic / Creative 四个角色分别配置 Provider；默认先用 DashScope `qwen3.5-omni-plus`，Research 默认继续使用可登记 URL / excerpt / hash 的 `registered-web`。后续可以只改配置，把部分角色切到 SiliconFlow、Codex CLI 或未来本地模型。
 
 ## 本机运行
 
-需要 **Node.js 22+**，以及已经安装并登录的 Codex CLI。
+当前 v1.2 运行需要 **Node.js 22+**，以及已经安装并登录的 Codex CLI。
 
 ```bash
 npm ci
@@ -18,56 +30,70 @@ codex login status
 npm run dev
 ```
 
-打开 `http://127.0.0.1:3000`。前端和 API 仅绑定本机回环地址。Bridge 忽略用户级配置，保留本机登录凭据，并通过每次 `codex exec` 的配置参数显式启用网页研究和公开 MusicBrainz MCP（`server/researchConfig.mjs`）。应用启动无需修改本机的项目信任设置。`.codex/config.toml` 仍可用于交互式 Codex 会话。
+打开 `http://127.0.0.1:3000`。前端和 API 仅绑定本机回环地址。
 
-来源读取会校验并固定公开 IP。若本机代理返回 `198.18/15` 的合成 DNS 地址，读取器通过固定 Cloudflare DNS-over-HTTPS 服务查询真实公开 IPv4，再执行相同的地址校验和连接固定；其他私网、保留地址以及不安全跳转仍拒绝读取。
+v2 Provider 配置已加入 `.env.example`，但 `MUSIC_V2_ENABLED=0` 默认关闭；在 audio acquisition、DashScope Listen adapter 和真实 Song Package E2E 完成前，不会替换可工作的 v1.2 路径。
 
-研究实际通过本机 Codex CLI 调用模型，项目默认固定为 `gpt-6-luna`，推理强度 `xhigh`（极高），可用 `CODEX_MODEL` 与 `CODEX_REASONING_EFFORT` 覆盖；页面显示当前配置的模型和强度。新流程不调用 Agnes。登录凭据来自本机 Codex，模型推理在 Codex 服务端进行，并非电脑离线运行 GPT。
+## 当前 v1.2 可用范围
 
-网页研究、资料读取和逐条审核可能需要数分钟，可取消，并会显示服务端阶段进度。首轮最多 3 次搜索、读取 5 个来源页；核心维度覆盖不足时可针对缺口补检一轮，累计最多 10 个独立来源。资料少时不会硬填歌曲事实；通用听歌指导会标明不代表歌曲分析。模型非零退出会区分登录、额度、模型、网络与 MCP 错误，未知原因附错误编号；终端只记录编号、阶段、分类和模型，不回传供应商原始诊断。
+- 支持歌曲搜索、网易云 / QQ / Apple / Spotify / YouTube 链接解析。
+- 网页来源读取会登记 URL、正文片段、哈希和检索时间。
+- 每次分析得到独立 `analysisId`；Deep Dive 追加历史；Studio 保存修订。
+- Studio 支持 A/B 预览、手动编辑、AI 建议、撤销/重做、保存、恢复和 Strudel 播放。
+- 当前默认分析仍是 evidence-first 且没有音频输入；这条限制只描述现行 v1.2 runtime，不描述 v2 目标。
 
-## 当前可用范围
+## v2 新增的核心合同
 
-- 服务端读取公开 HTML / JSON / 纯文本，登记在原文中找到的片段和内容哈希；不可读取的资料保留为未知。
-- 身份字段、每条判断和最终文案分别审核；适用范围、解释前提、引用存在性、主题范围和版本一致性由服务端校验。
-- 每次分析得到独立 `analysisId`。深挖追加历史，来源累计合并，Studio 保存代码、速度、循环拍数与来源类型。
-- 搜索列表可逐页展开全部返回候选。当前最多返回 180 个可访问的平台/iTunes 候选，不能保证覆盖整个乐队曲库或全部同名歌曲。
-- Studio 支持 A/B 预览、手动编辑、AI 建议、应用、撤销、重做、保存与 Strudel 代码导出。
-- 内置播放、A/B 试听和 Strudel 动态可视化已通过固定版本运行时接入；音频渲染和文件导出仍未实现。
+代码位于 `music-learning/v2/`：
 
-项目自有软件采用 [AGPL-3.0-or-later](LICENSE)，版权见 [NOTICE](NOTICE)，锁定依赖见 [第三方声明](THIRD_PARTY_NOTICES.md)。构建会附带这些文件和 React 等浏览器依赖的完整许可，页面提供许可与构建源码版本入口。具体决策及图片素材待补充的权属记录见 [Strudel 许可决策](docs/STRUDEL_LICENSE_DECISION.md)。
+- `types.ts`：Song Package、MusicObservationDocument、Provider Plan、Creative Blueprint。
+- `providerRegistry.mjs`：角色化 Provider 与 capability 校验。
+- `sourceMatcher.mjs`：音源候选评分和自动/人工选择阈值。
+- `contracts.mjs`：v2 Song Package / Observation / Creative Blueprint JSON Schema 来源。
 
-“片段在资料中存在”不等于“判断必然正确”。语义审核由模型执行，可能误判；来源、片段、审核记录与未知部分一起保存，便于复查。V1 没有音频输入，不声称已听取或测量原曲。
+v2 schemas 会和现有 schemas 一起通过：
 
-## 本机 API
+```bash
+npm run schemas:generate
+```
 
-先 `GET /api/agent/session` 获取当前服务的会话 token；后续 `/api/agent/*` 请求携带 `X-Music-Learning-Token`。接口拒绝外部 Origin 和不匹配的 Host。
+生成。
 
-| 接口 | 用途 |
-| --- | --- |
-| `GET /api/agent/health` | CLI、登录、项目配置及 MCP 初始化/工具列表检查 |
-| `POST /api/agent/analyze` | `{song, userPerception?}` → 保存后的分析；请求 `Accept: text/event-stream` 时可接收进度事件，默认仍为 JSON |
-| `POST /api/agent/deep-dive` | `{analysisId, analysisItemId, question?}` → 保存后的深挖 |
-| `GET /api/agent/analyses` | 研究历史 |
-| `GET /api/agent/analyses/:analysisId` | 完整 Evidence Package |
-| `POST /api/agent/analyses/:analysisId/deep-dives/:deepDiveId/studio` | `{session}` → 保存实验 |
-| `POST /api/agent/studio/propose` | `{analysisId, deepDiveId, sessionId, baseRevisionId, question}` → 建议，不自动应用 |
+## Provider 角色
 
-深挖不接受客户端提交的完整分析对象。没有模块时，使用 `analysisItemId: "question"` 并填写具体问题。
+默认配置：
+
+```
+Listen    = dashscope / qwen3.5-omni-plus
+Research  = dashscope / qwen3.5-omni-plus + registered-web
+Critic    = dashscope / qwen3.5-omni-plus
+Creative  = dashscope / qwen3.5-omni-plus
+```
+
+可以独立切换，例如未来：
+
+```
+Listen    = siliconflow / Qwen Omni
+Research  = codex-cli / GPT + registered-web
+Critic    = codex-cli / GPT
+Creative  = cheaper structured-text model
+```
+
+Codex CLI 目前在 v2 registry 中声明为 text/research provider，不声明 audio capability，因此不会误被选作 Listen。
 
 ## 保存与验证
 
-默认记录位置为 `.music-learning/evidence/<analysisId>/package.json`，不提交 Git。`MUSIC_LEARNING_PERSIST=0` 使用临时内存保存；页面会提示重启后丢失。可用 `MUSIC_LEARNING_EVIDENCE_DIR` 指定位置。新分析保存为 v1.2 UUID 快照；旧版 v1.1 历史可读取并补显示默认值，不改写原文件。旧版按歌曲键保存的文件仍保留，不自动迁移或删除。
+v1.2 默认记录仍在 `.music-learning/evidence/`。v2 Song Package 目标目录为 `.music-learning/library/`，两者均不提交 Git。
 
 ```bash
-npm run schemas:generate  # 修改 contracts.mjs 后更新生成的 Schema
-npm run verify            # TypeScript、Node 回归测试、生产构建
+npm run schemas:generate
+npm run verify
 ```
 
-测试使用明确标注的合成案例，验证结构、证据边界、不可覆盖的分析快照、累计来源、并发写入、回环保护、取消、CLI 超时和 Studio 版本恢复。它们不替代用户 Mac 上真实 Codex + MusicBrainz + 网页研究的验收。
+新增回归覆盖 v2 source matcher 和 provider switching。自动测试不能代替真实音频的本机验收。
 
 ## 兼容与部署
 
-歌曲搜索仍由 `/api/music/search` 提供。旧 UI 和 Agnes 本机 API 默认关闭；确有兼容需求时分别设置 `VITE_ENABLE_LEGACY_UI=1`、`MUSIC_LEARNING_ENABLE_LEGACY=1`，再访问 `/?legacy=1`。
+歌曲搜索仍由 `/api/music/search` 提供。旧 UI 和 Agnes 本机 API 默认关闭；确有兼容需求时分别设置 `VITE_ENABLE_LEGACY_UI=1`、`MUSIC_LEARNING_ENABLE_LEGACY=1`。
 
-新架构使用本机 Codex 和本地记录。Vercel 可验证前端构建和部署，不能代替本机 Agent 运行环境。公开部署的访问者会看到本机服务连接提示；本轮不把本机接口暴露到公网。
+v2 的 Local Song Package 代表音频与 artifact 缓存在本机；如果 Listen Provider 选择 DashScope 或 SiliconFlow，音频仍会发送到对应云端模型。完全本地化将通过替换 AudioUnderstandingProvider 实现，不改变上层 pipeline。
