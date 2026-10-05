@@ -80,6 +80,7 @@ export interface AcquisitionRecord {
   durationSec: number | null;
   matchScore: number;
   matchDecision: AudioMatchDecision;
+  requiresSanityCheck: boolean;
   downloadedAt: string;
   sha256: string;
 }
