@@ -1,0 +1,384 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MusicLearning2026 MusicObservationDocument v2.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "listenRunId",
+    "songId",
+    "mediaRevisionId",
+    "createdAt",
+    "provider",
+    "globalProfile",
+    "timeline",
+    "observations",
+    "notableMoments",
+    "estimatedParameters",
+    "uncertainties"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "2.0"
+    },
+    "listenRunId": {
+      "type": "string"
+    },
+    "songId": {
+      "type": "string"
+    },
+    "mediaRevisionId": {
+      "type": "string"
+    },
+    "createdAt": {
+      "type": "string"
+    },
+    "provider": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "model",
+        "promptVersion"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        },
+        "promptVersion": {
+          "type": "string"
+        }
+      }
+    },
+    "globalProfile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "styleTags",
+        "moodTags",
+        "overallCharacter",
+        "confidence"
+      ],
+      "properties": {
+        "styleTags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "moodTags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "overallCharacter": {
+          "type": "string"
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    },
+    "timeline": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "durationSec",
+        "sections"
+      ],
+      "properties": {
+        "durationSec": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "sections": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "startSec",
+              "endSec",
+              "label",
+              "description",
+              "confidence"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "startSec": {
+                "type": "number",
+                "minimum": 0
+              },
+              "endSec": {
+                "type": "number",
+                "minimum": 0
+              },
+              "label": {
+                "type": "string",
+                "enum": [
+                  "intro_like",
+                  "verse_like",
+                  "chorus_like",
+                  "build",
+                  "transition",
+                  "break",
+                  "climax",
+                  "outro_like",
+                  "other",
+                  "unknown"
+                ]
+              },
+              "description": {
+                "type": "string"
+              },
+              "confidence": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    "observations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "category",
+          "statement",
+          "startSec",
+          "endSec",
+          "tags",
+          "confidence",
+          "precision"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "rhythm",
+              "harmony",
+              "melody",
+              "timbre",
+              "arrangement",
+              "structure",
+              "production",
+              "energy"
+            ]
+          },
+          "statement": {
+            "type": "string"
+          },
+          "startSec": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "endSec": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "confidence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "precision": {
+            "type": "string",
+            "enum": [
+              "global",
+              "section",
+              "time_localized"
+            ]
+          }
+        }
+      }
+    },
+    "notableMoments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "startSec",
+          "endSec",
+          "salience",
+          "title",
+          "observationIds"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "startSec": {
+            "type": "number",
+            "minimum": 0
+          },
+          "endSec": {
+            "type": "number",
+            "minimum": 0
+          },
+          "salience": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "title": {
+            "type": "string"
+          },
+          "observationIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "estimatedParameters": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "bpm",
+        "key",
+        "meter"
+      ],
+      "properties": {
+        "bpm": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "value",
+            "confidence"
+          ],
+          "properties": {
+            "value": {
+              "type": [
+                "string",
+                "number",
+                "null"
+              ]
+            },
+            "confidence": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            }
+          }
+        },
+        "key": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "value",
+            "confidence"
+          ],
+          "properties": {
+            "value": {
+              "type": [
+                "string",
+                "number",
+                "null"
+              ]
+            },
+            "confidence": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            }
+          }
+        },
+        "meter": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "value",
+            "confidence"
+          ],
+          "properties": {
+            "value": {
+              "type": [
+                "string",
+                "number",
+                "null"
+              ]
+            },
+            "confidence": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            }
+          }
+        }
+      }
+    },
+    "uncertainties": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "topic",
+          "text"
+        ],
+        "properties": {
+          "topic": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "rhythm",
+                  "harmony",
+                  "melody",
+                  "timbre",
+                  "arrangement",
+                  "structure",
+                  "production",
+                  "energy"
+                ]
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "identity",
+                  "other"
+                ]
+              }
+            ]
+          },
+          "text": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}
