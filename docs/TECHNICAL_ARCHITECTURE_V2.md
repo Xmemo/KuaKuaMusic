@@ -203,9 +203,9 @@ Song Package 的稳定 ID 以规范化后的 title + artist 为主；album/year 
 
 Research Backend 独立配置：
 
-- `registered-web`：继续使用 v1.2 的读取、片段登记与哈希机制；默认。
-- `provider-native`：未来可直接使用支持原生 Web Search 的模型。
-- `codex-web`：未来可把 Codex CLI 作为研究执行器。
+- `registered-web`：**当前已实现，默认。** 第一版用现有 Codex Web discovery 找资料，再由 Source Registry 读取正文、定位 excerpt、登记 hash；之后由所选 Research Text Provider（默认 Qwen）整理成 ResearchArtifact。
+- `provider-native`：预留。未来可直接使用支持原生 Web Search 且能满足 provenance 要求的模型；当前未启用，因为仅“模型说它搜过”不能替代现有 URL/excerpt/hash 记录。
+- `codex-web`：已定义为 Codex 端到端 Research 模式；使用时要求 `MUSIC_RESEARCH_PROVIDER=codex-cli`。
 
 默认 v2 开发配置：
 
@@ -313,7 +313,14 @@ Listen 必须主动输出 uncertainty，例如“完整混音下无法可靠判�
 
 ## 8. Research Pass
 
-第一轮 Research 不读取 Listen artifact，以保证独立性。继续优先登记：
+第一轮 Research 不读取 Listen artifact，以保证独立性。代码层进一步拆成两个职责：
+
+1. **Research Backend**：发现并真实读取资料，产生可追溯的 registered sources。
+2. **Research Text Provider**：只读取已登记 excerpt，形成 ResearchArtifact findings；每条 finding 必须引用真实 evidenceId。
+
+默认 `registered-web` 因而仍保留 v1.2 已验证的网页读取安全边界，同时不把 Critic/Creative 继续绑死在 Codex。
+
+继续优先登记：
 
 - 官方 credits
 - 创作者 / 制作人采访
@@ -325,6 +332,8 @@ Listen 必须主动输出 uncertainty，例如“完整混音下无法可靠判�
 第一轮完成后，如果 Listen 发现了非常显著而 Research 未覆盖的时刻，可有一轮 targeted follow-up。该轮必须标记 `guidedByObservationIds`，不能冒充独立 corroboration。
 
 ## 9. Critic Pass
+
+Critic 的每条 interpretation 必须引用已有 Audio Observation 或外部 evidence；走心 / 上头 / 懂行也保存 `interpretationIds`，避免总体文案成为新的无来源事实层。
 
 输入：
 
@@ -355,7 +364,9 @@ Deep Dive 可以对目标时间区间做 re-listen。输入应包括：
 
 ## 11. Creative Blueprint
 
-分析与 Studio 之间增加正式中间层：
+分析与 Studio 之间增加正式中间层；当前实现同时生成 deterministic `StrudelPlan`，只把已支持的变量映射到 Strudel operation / visual hint，且统一标为 `learning_reconstruction`：
+
+
 
 **Observation → Interpretation → Creative Blueprint → Strudel**
 
