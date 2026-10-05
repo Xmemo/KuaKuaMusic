@@ -32,6 +32,53 @@ function extractTextContent(payload) {
   return "";
 }
 
+export async function readDashScopeStreamText(response) {
+  if (!response.body?.getReader) {
+    const payload = await response.json().catch(() => null);
+    return extractTextContent(payload);
+  }
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let text = "";
+
+  const consume = (line) => {
+    const value = line.trim();
+    if (!value.startsWith("data:")) return;
+    const data = value.slice(5).trim();
+    if (!data || data === "[DONE]") return;
+    let payload;
+    try {
+      payload = JSON.parse(data);
+    } catch {
+      return;
+    }
+    const delta = payload?.choices?.[0]?.delta?.content;
+    if (typeof delta === "string") text += delta;
+    else if (Array.isArray(delta))
+      text += delta
+        .map((item) =>
+          typeof item === "string"
+            ? item
+            : typeof item?.text === "string"
+              ? item.text
+              : "",
+        )
+        .join("");
+  };
+
+  while (true) {
+    const { value, done } = await reader.read();
+    buffer += decoder.decode(value || new Uint8Array(), { stream: !done });
+    const lines = buffer.split(/\r?\n/u);
+    buffer = lines.pop() || "";
+    for (const line of lines) consume(line);
+    if (done) break;
+  }
+  if (buffer.trim()) consume(buffer);
+  return text.trim();
+}
+
 function parseJson(text) {
   try {
     return JSON.parse(text);
@@ -198,10 +245,12 @@ export function createDashScopeAudioProvider({
         ],
         modalities: ["text"],
         response_format: { type: "json_object" },
+        stream: true,
+        stream_options: { include_usage: true },
       }),
     });
-    const payload = await response.json().catch(() => null);
     if (!response.ok) {
+      const payload = await response.json().catch(() => null);
       throw new AppError(
         "Qwen Listen 调用失败。" +
           (payload?.error?.message ? " " + payload.error.message : ""),
@@ -209,7 +258,7 @@ export function createDashScopeAudioProvider({
         502,
       );
     }
-    const text = extractTextContent(payload);
+    const text = await readDashScopeStreamText(response);
     if (!text) {
       throw new AppError(
         "Qwen Listen 没有返回文本结果。",
