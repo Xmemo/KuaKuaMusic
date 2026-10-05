@@ -1,6 +1,6 @@
 # MusicLearning2026 技术架构 v2.0
 
-> 状态：目标架构已冻结，运行时迁移中。当前 `a3fe921` / v1.2 仍是可运行基线；在真实音频链路验收前，不替换现有默认 `/api/agent/analyze`。
+> 状态：目标架构已冻结，v2 后端主链已实现并由 feature flag 隔离。当前 `a3fe921` / v1.2 仍是默认用户路径；在真实 Mac 音频链路验收前，不替换现有默认 `/api/agent/analyze`。
 
 ## 1. 核心判断
 
@@ -188,7 +188,7 @@ Channel authority 优先：官方艺人频道、Topic、发行商/厂牌、游�
 
 Song Package 的稳定 ID 以规范化后的 title + artist 为主；album/year 是身份元数据，不参与默认 package key，避免网易云、QQ、Apple 的目录差异把同一首歌拆成多个本地包。具体录音/母带/现场版本由 media revision 与 acquisition provenance 区分。
 
-所有 artifact 均新增版本，不覆盖历史。相同 media hash 可以复用 Listen 结果；模型或 prompt 版本改变时产生新的 observation run。
+所有 artifact 均新增版本，不覆盖历史。当前实现按 `mediaRevisionId + Listen provider + model + promptVersion` 复用 Listen 结果；模型、Prompt 或 media revision 改变时产生新的 observation run。Independent Research 按 provider/model/backend + TTL 复用，默认 TTL 为 168 小时。
 
 ## 6. Provider Architecture
 
@@ -364,11 +364,11 @@ Deep Dive 可以对目标时间区间做 re-listen。输入应包括：
 
 ## 11. Creative Blueprint
 
-分析与 Studio 之间增加正式中间层；当前实现同时生成 deterministic `StrudelPlan`，只把已支持的变量映射到 Strudel operation / visual hint，且统一标为 `learning_reconstruction`：
+分析与 Studio 之间增加正式中间层；当前实现先生成 deterministic `StrudelPlan`，只把已支持的变量映射到 Strudel operation / visual hint；再由 Creative Provider 生成 A/B pattern，并通过现有 `runtimePolicy` 的 JavaScript/密度/播放约束校验。服务端强制 sourceType=`learning_reconstruction`：
 
 
 
-**Observation → Interpretation → Creative Blueprint → Strudel**
+**Observation → Interpretation → Creative Blueprint → StrudelPlan → Validated Studio Seed → Strudel Runtime**
 
 Blueprint 不是原曲转录，而是“哪些有依据的音乐机制可以变成可操作变量”。
 
@@ -414,7 +414,7 @@ Creative Blueprint 映射示例：
 | texture density | texture_density | layer count |
 | filter movement | filter_motion | filter parameters |
 
-Studio revision 需要继续保存 observation / interpretation / blueprint 的来源 ID，使用户能从一个实验反查“为什么让我改这个变量”。
+Studio Seed 保存 `blueprintId + sourceObservationIds + sourceInterpretationIds`，使用户能从一个实验反查“为什么让我改这个变量”。生成的 code / alternativeCode 必须通过现有 `validateStudioCode`；不允许外部 sample bank、网络访问、任意 JavaScript 或把估计内容标为原曲转录。
 
 ## 13. 进度状态
 
@@ -446,16 +446,17 @@ v2 SSE 建议：
 
 ## 16. 迁移计划
 
-### P0
+### P0 — 代码已实现，等待真实 E2E
 
 1. Song Package 与 matcher。
 2. Provider Registry 与 role-based config。
 3. MusicObservationDocument v2 contract。
-4. DashScope Listen adapter。
-5. 现有 registered-web 改造成独立 Research Pass。
-6. Critic：Observation + Research → 当前前端可读 Analysis。
-7. Creative Blueprint contract + Strudel adapter mapping。
-8. 在真实 Mac 上完成一首歌曲端到端验收后，再切默认 analyze route。
+4. DashScope Listen adapter + 临时上传。
+5. registered-web 独立 Research Pass + Source Registry。
+6. Critic：Observation + Research → Critic Analysis。
+7. Creative Blueprint → StrudelPlan → validated A/B Studio Seed。
+8. 一键 `POST /api/agent/v2/analyze`、本地复用与 Listen/Research 单边失败降级。
+9. **待办 Gate：在真实 Mac 上完成至少一首歌曲 E2E，再决定默认前端切换。**
 
 ### P1
 
