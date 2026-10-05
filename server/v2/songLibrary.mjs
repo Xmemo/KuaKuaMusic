@@ -184,19 +184,96 @@ export function createSongLibrary({
     return { manifest, media };
   }
 
+  async function appendManifestId(songId, field, value) {
+    const manifest = await loadManifest(songId);
+    if (!manifest[field].includes(value)) manifest[field].push(value);
+    manifest.updatedAt = new Date().toISOString();
+    await writeJsonAtomic(path.join(songDir(songId), "manifest.json"), manifest);
+    return manifest;
+  }
+
+  function latestId(values, label) {
+    const value = values.at(-1);
+    if (!value) {
+      throw new AppError(
+        "这首歌还没有可用的" + label + "。",
+        "V2_ARTIFACT_NOT_READY",
+        409,
+      );
+    }
+    return value;
+  }
+
   async function saveObservation(songId, document) {
     assertId(document.listenRunId, "listenRunId");
     await writeJsonAtomic(
       path.join(songDir(songId), "observations", document.listenRunId + ".json"),
       document,
     );
+    return appendManifestId(songId, "observationRunIds", document.listenRunId);
+  }
+
+  async function loadObservation(songId, listenRunId = null) {
     const manifest = await loadManifest(songId);
-    if (!manifest.observationRunIds.includes(document.listenRunId)) {
-      manifest.observationRunIds.push(document.listenRunId);
-    }
-    manifest.updatedAt = new Date().toISOString();
-    await writeJsonAtomic(path.join(songDir(songId), "manifest.json"), manifest);
-    return manifest;
+    const id = assertId(
+      listenRunId || latestId(manifest.observationRunIds, "Listen 记录"),
+      "listenRunId",
+    );
+    return readJson(path.join(songDir(songId), "observations", id + ".json"));
+  }
+
+  async function saveResearch(songId, artifact, sources) {
+    assertId(artifact.researchRunId, "researchRunId");
+    await writeJsonAtomic(
+      path.join(songDir(songId), "research", artifact.researchRunId + ".json"),
+      { artifact, sources },
+    );
+    return appendManifestId(songId, "researchRunIds", artifact.researchRunId);
+  }
+
+  async function loadResearch(songId, researchRunId = null) {
+    const manifest = await loadManifest(songId);
+    const id = assertId(
+      researchRunId || latestId(manifest.researchRunIds, "Research 记录"),
+      "researchRunId",
+    );
+    return readJson(path.join(songDir(songId), "research", id + ".json"));
+  }
+
+  async function saveAnalysis(songId, analysis) {
+    assertId(analysis.analysisId, "analysisId");
+    await writeJsonAtomic(
+      path.join(songDir(songId), "analyses", analysis.analysisId + ".json"),
+      analysis,
+    );
+    return appendManifestId(songId, "analysisIds", analysis.analysisId);
+  }
+
+  async function loadAnalysis(songId, analysisId = null) {
+    const manifest = await loadManifest(songId);
+    const id = assertId(
+      analysisId || latestId(manifest.analysisIds, "Critic 分析"),
+      "analysisId",
+    );
+    return readJson(path.join(songDir(songId), "analyses", id + ".json"));
+  }
+
+  async function saveBlueprint(songId, blueprint) {
+    assertId(blueprint.blueprintId, "blueprintId");
+    await writeJsonAtomic(
+      path.join(songDir(songId), "creative", blueprint.blueprintId + ".json"),
+      blueprint,
+    );
+    return appendManifestId(songId, "blueprintIds", blueprint.blueprintId);
+  }
+
+  async function loadBlueprint(songId, blueprintId = null) {
+    const manifest = await loadManifest(songId);
+    const id = assertId(
+      blueprintId || latestId(manifest.blueprintIds, "Creative Blueprint"),
+      "blueprintId",
+    );
+    return readJson(path.join(songDir(songId), "creative", id + ".json"));
   }
 
   return Object.freeze({
@@ -208,5 +285,12 @@ export function createSongLibrary({
     loadManifest,
     getCurrentMedia,
     saveObservation,
+    loadObservation,
+    saveResearch,
+    loadResearch,
+    saveAnalysis,
+    loadAnalysis,
+    saveBlueprint,
+    loadBlueprint,
   });
 }
