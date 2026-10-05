@@ -1,0 +1,257 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MusicLearning2026 CriticAnalysis v2.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "analysisId",
+    "songId",
+    "listenRunId",
+    "researchRunId",
+    "createdAt",
+    "provider",
+    "overallVibe",
+    "interpretations",
+    "modules",
+    "unknowns"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "2.0"
+    },
+    "analysisId": {
+      "type": "string"
+    },
+    "songId": {
+      "type": "string"
+    },
+    "listenRunId": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "researchRunId": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "createdAt": {
+      "type": "string"
+    },
+    "provider": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "model"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        }
+      }
+    },
+    "overallVibe": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "hook",
+        "emo",
+        "hype",
+        "pro"
+      ],
+      "properties": {
+        "hook": {
+          "type": "string"
+        },
+        "emo": {
+          "type": "string"
+        },
+        "hype": {
+          "type": "string"
+        },
+        "pro": {
+          "type": "string"
+        }
+      }
+    },
+    "interpretations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "category",
+          "text",
+          "observationIds",
+          "evidenceIds",
+          "generalPrinciples"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "culture",
+              "rhythm",
+              "harmony",
+              "melody",
+              "timbre",
+              "arrangement",
+              "structure",
+              "production",
+              "energy"
+            ]
+          },
+          "text": {
+            "type": "string"
+          },
+          "observationIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "evidenceIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "generalPrinciples": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "modules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "category",
+          "title",
+          "summary",
+          "interpretationIds",
+          "listeningCues",
+          "unknowns",
+          "expandable",
+          "studioPotential"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "culture",
+              "rhythm",
+              "harmony",
+              "melody",
+              "timbre",
+              "arrangement",
+              "structure",
+              "production",
+              "energy"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "interpretationIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "listeningCues": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "text",
+                "startSec",
+                "endSec",
+                "observationIds",
+                "evidenceIds"
+              ],
+              "properties": {
+                "text": {
+                  "type": "string"
+                },
+                "startSec": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "endSec": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "observationIds": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "evidenceIds": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          },
+          "unknowns": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "expandable": {
+            "type": "boolean"
+          },
+          "studioPotential": {
+            "type": "string",
+            "enum": [
+              "none",
+              "rhythm",
+              "harmony",
+              "arrangement",
+              "mixed"
+            ]
+          }
+        }
+      }
+    },
+    "unknowns": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}
