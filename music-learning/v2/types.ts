@@ -108,6 +108,7 @@ export interface SongPackageManifest {
   researchRunIds: string[];
   analysisIds: string[];
   blueprintIds: string[];
+  studioSeedIds: string[];
   updatedAt: string;
 }
 
@@ -319,6 +320,45 @@ export interface CreativeBlueprint {
   listenFor: string[];
   limitations: string[];
   studioEligible: boolean;
+}
+
+
+export type V2VisualHint =
+  | "pianoroll"
+  | "punchcard"
+  | "spiral"
+  | "scope"
+  | "spectrum"
+  | "pitchwheel";
+
+export interface V2StudioSeed {
+  schemaVersion: "2.0";
+  studioSeedId: string;
+  blueprintId: string;
+  songId: string;
+  analysisId: string;
+  sourceType: "learning_reconstruction";
+  sourceObservationIds: string[];
+  sourceInterpretationIds: string[];
+  code: string;
+  alternativeCode: string;
+  explanation: string;
+  visualHints: V2VisualHint[];
+  playback: {
+    bpm: number;
+    beatsPerCycle: number;
+    soundBank: string;
+    runtimeVersion: string;
+  };
+  experiment: {
+    question: string;
+    variable: string;
+    baseline: string;
+    changed: string;
+    constants: string[];
+    listenFor: string[];
+    limitation: string;
+  };
 }
 
 export type V2PipelineStage =
