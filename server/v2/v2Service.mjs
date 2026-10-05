@@ -1,14 +1,37 @@
+import fs from "node:fs/promises";
 import { AppError } from "../errors.mjs";
-import { resolveProviderPlan, providerHealthSummary } from "../../music-learning/v2/providerRegistry.mjs";
+import {
+  resolveProviderPlan,
+  providerHealthSummary,
+} from "../../music-learning/v2/providerRegistry.mjs";
 import { createSongLibrary } from "./songLibrary.mjs";
 import { createYouTubeAudioProvider } from "./youtubeAudioProvider.mjs";
-import { createDashScopeAudioProvider } from "./dashscopeAudioProvider.mjs";
+import {
+  createDashScopeAudioProvider,
+  DASHSCOPE_LISTEN_PROMPT_VERSION,
+} from "./dashscopeAudioProvider.mjs";
 import { runProcess } from "./processRunner.mjs";
 import { createResearchPass } from "./researchPass.mjs";
 import { createCriticPass } from "./criticPass.mjs";
 import { createCreativePass } from "./creativePass.mjs";
 import { creativeBlueprintToStrudelPlan } from "./creativeStrudelBridge.mjs";
 import { createStrudelSeedPass } from "./strudelSeedPass.mjs";
+
+function positiveNumber(value, fallback) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
+}
+
+function warningFrom(error, stage) {
+  return {
+    stage,
+    code: error instanceof AppError ? error.code : "V2_STAGE_FAILED",
+    message:
+      error instanceof AppError
+        ? error.message
+        : stage + " 阶段未能完成。",
+  };
+}
 
 export function createV2Service({
   env = process.env,
@@ -41,6 +64,11 @@ export function createV2Service({
     env,
     fetcher,
   });
+  const researchCacheMs =
+    positiveNumber(env.MUSIC_RESEARCH_CACHE_TTL_HOURS, 168) *
+    60 *
+    60 *
+    1000;
 
   function listenProvider(selection) {
     if (selection.provider === "dashscope") {
@@ -55,11 +83,63 @@ export function createV2Service({
     );
   }
 
+  function listenPromptVersion(selection) {
+    if (selection.provider === "dashscope")
+      return DASHSCOPE_LISTEN_PROMPT_VERSION;
+    return null;
+  }
+
+  async function mediaFilesExist(media) {
+    try {
+      await Promise.all([
+        fs.access(media.sourcePath),
+        fs.access(media.analysisPath),
+      ]);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   async function materialize(
-    { song, selectedSourceId = null } = {},
+    {
+      song,
+      selectedSourceId = null,
+      forceRematch = false,
+    } = {},
     { signal, onProgress } = {},
   ) {
     const pkg = await library.ensureSongPackage(song);
+
+    if (
+      !forceRematch &&
+      !selectedSourceId &&
+      pkg.manifest.currentMediaRevisionId
+    ) {
+      try {
+        const current = await library.getCurrentMedia(pkg.song.songId);
+        if (await mediaFilesExist(current.media)) {
+          onProgress?.({
+            stage: "acquiring_audio",
+            label: "已找到本地歌曲音频，直接复用",
+          });
+          return {
+            status: "ready",
+            reused: true,
+            songId: pkg.song.songId,
+            song: pkg.song,
+            media: current.media,
+            manifest: current.manifest,
+          };
+        }
+      } catch (error) {
+        if (
+          error instanceof AppError &&
+          error.code !== "V2_AUDIO_NOT_READY"
+        ) throw error;
+      }
+    }
+
     const candidates = await youtube.search(pkg.song, { signal, onProgress });
     if (!candidates.length) {
       throw new AppError(
@@ -69,7 +149,7 @@ export function createV2Service({
       );
     }
 
-    let match = youtube.choose(pkg.song, candidates);
+    const match = youtube.choose(pkg.song, candidates);
     let selected = match.selected;
     let decision = match.decision;
     let requiresSanityCheck = match.requiresSanityCheck;
@@ -104,6 +184,7 @@ export function createV2Service({
       });
       return {
         status: "confirmation_required",
+        reused: false,
         songId: pkg.song.songId,
         song: pkg.song,
         candidates: match.candidates,
@@ -132,9 +213,13 @@ export function createV2Service({
       analysisMimeType: acquired.analysisMimeType,
       durationSec: selected.durationSec,
     };
-    const manifest = await library.commitMediaRevision(pkg.song.songId, media);
+    const manifest = await library.commitMediaRevision(
+      pkg.song.songId,
+      media,
+    );
     return {
       status: "ready",
+      reused: false,
       songId: pkg.song.songId,
       song: pkg.song,
       media,
@@ -143,18 +228,36 @@ export function createV2Service({
   }
 
   async function listen(
-    { songId } = {},
+    { songId, force = false } = {},
     { signal, onProgress } = {},
   ) {
     if (!songId) {
       throw new AppError("songId 不能为空。", "V2_INVALID_ID", 400);
     }
     const { manifest, media } = await library.getCurrentMedia(songId);
+    const selection = providerPlan.listen;
+    const promptVersion = listenPromptVersion(selection);
+
+    if (!force && promptVersion) {
+      const cached = await library.findReusableObservation(songId, {
+        mediaRevisionId: media.mediaRevisionId,
+        provider: selection.provider,
+        model: selection.model,
+        promptVersion,
+      });
+      if (cached) {
+        onProgress?.({
+          stage: "listening",
+          label: "已找到同一音频与模型的 Listen 记录，直接复用",
+        });
+        return cached;
+      }
+    }
+
     onProgress?.({
       stage: "listening",
       label: "正在独立听这首歌",
     });
-    const selection = providerPlan.listen;
     const provider = listenProvider(selection);
     const observation = await provider.listen({
       audioPath: media.analysisPath,
@@ -168,45 +271,78 @@ export function createV2Service({
   }
 
   async function research(
-    { songId } = {},
+    { songId, force = false } = {},
     { signal, onProgress } = {},
   ) {
     if (!songId) {
       throw new AppError("songId 不能为空。", "V2_INVALID_ID", 400);
     }
     const manifest = await library.loadManifest(songId);
+    const selection = providerPlan.research;
+
+    if (!force && researchCacheMs > 0) {
+      const cached = await library.findReusableResearch(songId, {
+        provider: selection.provider,
+        model: selection.model,
+        backend: selection.backend,
+        maxAgeMs: researchCacheMs,
+      });
+      if (cached) {
+        onProgress?.({
+          stage: "researching",
+          label: "已找到近期 Research 记录，直接复用",
+        });
+        return {
+          ...cached,
+          reused: true,
+        };
+      }
+    }
+
     const result = await researchPass.run(manifest.song, {
       signal,
       onProgress,
     });
     await library.saveResearch(songId, result.artifact, result.sources);
-    return result;
+    return { ...result, reused: false };
   }
 
   async function optionalArtifact(loader) {
     try {
       return await loader();
     } catch (error) {
-      if (error instanceof AppError && error.code === "V2_ARTIFACT_NOT_READY")
-        return null;
+      if (
+        error instanceof AppError &&
+        error.code === "V2_ARTIFACT_NOT_READY"
+      ) return null;
       throw error;
     }
   }
 
   async function critic(
-    { songId, listenRunId = null, researchRunId = null } = {},
+    {
+      songId,
+      listenRunId = undefined,
+      researchRunId = undefined,
+    } = {},
     { signal, onProgress } = {},
   ) {
     if (!songId) {
       throw new AppError("songId 不能为空。", "V2_INVALID_ID", 400);
     }
     const manifest = await library.loadManifest(songId);
-    const observation = await optionalArtifact(() =>
-      library.loadObservation(songId, listenRunId),
-    );
-    const researchRecord = await optionalArtifact(() =>
-      library.loadResearch(songId, researchRunId),
-    );
+    const observation =
+      listenRunId === null
+        ? null
+        : await optionalArtifact(() =>
+            library.loadObservation(songId, listenRunId || null),
+          );
+    const researchRecord =
+      researchRunId === null
+        ? null
+        : await optionalArtifact(() =>
+            library.loadResearch(songId, researchRunId || null),
+          );
     const analysis = await criticPass.run(manifest.song, {
       observation,
       research: researchRecord?.artifact || null,
@@ -232,9 +368,17 @@ export function createV2Service({
     }
     const manifest = await library.loadManifest(songId);
     const analysis = await library.loadAnalysis(songId, analysisId);
+    const resolvedListenRunId = listenRunId || analysis.listenRunId;
+    if (!resolvedListenRunId) {
+      throw new AppError(
+        "Creative Blueprint 需要 Audio Observation；本轮只有 Research，已跳过 Studio。",
+        "V2_AUDIO_OBSERVATION_REQUIRED",
+        409,
+      );
+    }
     const observation = await library.loadObservation(
       songId,
-      listenRunId || analysis.listenRunId,
+      resolvedListenRunId,
     );
     const blueprint = await creativePass.run(manifest.song, {
       observation,
@@ -262,6 +406,101 @@ export function createV2Service({
     };
   }
 
+  async function analyze(
+    {
+      song,
+      selectedSourceId = null,
+      forceRematch = false,
+      forceListen = false,
+      forceResearch = false,
+    } = {},
+    { signal, onProgress } = {},
+  ) {
+    const materialized = await materialize(
+      { song, selectedSourceId, forceRematch },
+      { signal, onProgress },
+    );
+    if (materialized.status === "confirmation_required") {
+      return materialized;
+    }
+
+    const songId = materialized.songId;
+    const [listenResult, researchResult] = await Promise.allSettled([
+      listen(
+        { songId, force: forceListen },
+        { signal, onProgress },
+      ),
+      research(
+        { songId, force: forceResearch },
+        { signal, onProgress },
+      ),
+    ]);
+
+    const observation =
+      listenResult.status === "fulfilled" ? listenResult.value : null;
+    const researchRecord =
+      researchResult.status === "fulfilled" ? researchResult.value : null;
+    const warnings = [];
+    if (listenResult.status === "rejected")
+      warnings.push(warningFrom(listenResult.reason, "listen"));
+    if (researchResult.status === "rejected")
+      warnings.push(warningFrom(researchResult.reason, "research"));
+
+    if (!observation && !researchRecord) {
+      throw new AppError(
+        "Listen 与 Research 都未能完成，本轮没有足够材料继续分析。",
+        "V2_PRIMARY_PASSES_FAILED",
+        502,
+      );
+    }
+
+    const criticResult = await critic(
+      {
+        songId,
+        listenRunId: observation?.listenRunId ?? null,
+        researchRunId: researchRecord?.artifact?.researchRunId ?? null,
+      },
+      { signal, onProgress },
+    );
+
+    let creativeResult = null;
+    if (observation) {
+      try {
+        creativeResult = await creative(
+          {
+            songId,
+            analysisId: criticResult.analysis.analysisId,
+            listenRunId: observation.listenRunId,
+          },
+          { signal, onProgress },
+        );
+      } catch (error) {
+        if (signal?.aborted) throw error;
+        warnings.push(warningFrom(error, "creative"));
+      }
+    }
+
+    onProgress?.({
+      stage: "complete",
+      label: warnings.length ? "分析完成，部分辅助阶段降级" : "分析完成",
+    });
+
+    return {
+      status: warnings.length ? "partial" : "complete",
+      songId,
+      materialization: {
+        reused: Boolean(materialized.reused),
+        mediaRevisionId: materialized.media.mediaRevisionId,
+      },
+      observation,
+      research: researchRecord?.artifact || null,
+      sources: researchRecord?.sources || [],
+      analysis: criticResult.analysis,
+      creative: creativeResult,
+      warnings,
+    };
+  }
+
   return Object.freeze({
     providerPlan: () => providerHealthSummary(providerPlan),
     materialize,
@@ -269,6 +508,7 @@ export function createV2Service({
     research,
     critic,
     creative,
+    analyze,
     libraryRoot: library.root,
   });
 }
