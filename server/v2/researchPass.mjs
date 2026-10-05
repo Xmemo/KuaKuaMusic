@@ -55,6 +55,13 @@ export function createResearchPass({
       onProgress,
     } = {},
   ) {
+    if (backendName === "codex-web" && selection.provider !== "codex-cli") {
+      throw new AppError(
+        "codex-web 需要 MUSIC_RESEARCH_PROVIDER=codex-cli。",
+        "V2_RESEARCH_BACKEND_PROVIDER_MISMATCH",
+        400,
+      );
+    }
     if (backendName !== "registered-web" && backendName !== "codex-web") {
       throw new AppError(
         "Research backend '" +
