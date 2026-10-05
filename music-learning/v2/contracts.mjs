@@ -139,6 +139,33 @@ const criticDraft = {
   unknowns: array(string),
 };
 
+const visualHint = choice([
+  "pianoroll",
+  "punchcard",
+  "spiral",
+  "scope",
+  "spectrum",
+  "pitchwheel",
+]);
+
+const studioExperiment = object({
+  question: string,
+  variable: string,
+  baseline: string,
+  changed: string,
+  constants: array(string),
+  listenFor: array(string),
+  limitation: string,
+});
+
+const studioSeedDraft = {
+  code: string,
+  alternativeCode: string,
+  explanation: string,
+  visualHints: array(visualHint),
+  experiment: studioExperiment,
+};
+
 const creativeVariable = object({
   id: string,
   type: creativeVariableType,
@@ -238,6 +265,7 @@ export const v2Contracts = {
       researchRunIds: array(string),
       analysisIds: array(string),
       blueprintIds: array(string),
+      studioSeedIds: array(string),
       updatedAt: string,
     }),
   },
@@ -306,6 +334,34 @@ export const v2Contracts = {
       songId: string,
       analysisId: string,
       ...creativeDraft,
+    }),
+  },
+
+  "v2-studio-seed-draft": {
+    $schema: "https://json-schema.org/draft/2020-12/schema",
+    title: "MusicLearning2026 Strudel Studio Seed Draft v2.0",
+    ...object(studioSeedDraft),
+  },
+
+  "v2-studio-seed": {
+    $schema: "https://json-schema.org/draft/2020-12/schema",
+    title: "MusicLearning2026 Strudel Studio Seed v2.0",
+    ...object({
+      schemaVersion: { const: "2.0" },
+      studioSeedId: string,
+      blueprintId: string,
+      songId: string,
+      analysisId: string,
+      sourceType: { const: "learning_reconstruction" },
+      sourceObservationIds: array(string),
+      sourceInterpretationIds: array(string),
+      ...studioSeedDraft,
+      playback: object({
+        bpm: { type: "number", minimum: 20, maximum: 300 },
+        beatsPerCycle: { type: "number", minimum: 0.25, maximum: 32 },
+        soundBank: string,
+        runtimeVersion: string,
+      }),
     }),
   },
 };
