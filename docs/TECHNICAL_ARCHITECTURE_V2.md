@@ -169,9 +169,11 @@ Channel authority 优先：官方艺人频道、Topic、发行商/厂牌、游�
 ├── manifest.json
 ├── identity.json
 ├── media/
-│   ├── acquisition.json
-│   ├── source.*
-│   └── analysis.*
+│   └── <media-revision-id>/
+│       ├── media.json
+│       ├── acquisition.json
+│       ├── source.*
+│       └── analysis.*
 ├── observations/
 │   └── <listen-run-id>.json
 ├── research/
@@ -183,6 +185,8 @@ Channel authority 优先：官方艺人频道、Topic、发行商/厂牌、游�
 ├── deep-dives/
 └── studio/
 ```
+
+Song Package 的稳定 ID 以规范化后的 title + artist 为主；album/year 是身份元数据，不参与默认 package key，避免网易云、QQ、Apple 的目录差异把同一首歌拆成多个本地包。具体录音/母带/现场版本由 media revision 与 acquisition provenance 区分。
 
 所有 artifact 均新增版本，不覆盖历史。相同 media hash 可以复用 Listen 结果；模型或 prompt 版本改变时产生新的 observation run。
 
