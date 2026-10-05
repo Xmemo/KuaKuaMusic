@@ -105,7 +105,11 @@ async function openAiCompatibleJson({
 
 export function createStructuredTextProvider(
   selection,
-  { env = process.env, fetcher = fetch } = {},
+  {
+    env = process.env,
+    fetcher = fetch,
+    codexRunner = runCodexStructured,
+  } = {},
 ) {
   if (!selection?.provider || !selection?.model) {
     throw new AppError(
@@ -125,7 +129,7 @@ export function createStructuredTextProvider(
     }
 
     if (selection.provider === "codex-cli") {
-      const value = await runCodexStructured({
+      const value = await codexRunner({
         prompt,
         outputSchema: schemaPath("schemas/" + schemaName + ".schema.json"),
         signal,
