@@ -8,6 +8,7 @@ import { createResearchPass } from "./researchPass.mjs";
 import { createCriticPass } from "./criticPass.mjs";
 import { createCreativePass } from "./creativePass.mjs";
 import { creativeBlueprintToStrudelPlan } from "./creativeStrudelBridge.mjs";
+import { createStrudelSeedPass } from "./strudelSeedPass.mjs";
 
 export function createV2Service({
   env = process.env,
@@ -31,6 +32,11 @@ export function createV2Service({
     fetcher,
   });
   const creativePass = createCreativePass({
+    selection: providerPlan.creative,
+    env,
+    fetcher,
+  });
+  const strudelSeedPass = createStrudelSeedPass({
     selection: providerPlan.creative,
     env,
     fetcher,
@@ -237,9 +243,22 @@ export function createV2Service({
       onProgress,
     });
     await library.saveBlueprint(songId, blueprint);
+    const strudelPlan = creativeBlueprintToStrudelPlan(blueprint);
+    const studioSeed = await strudelSeedPass.run(
+      {
+        song: manifest.song,
+        observation,
+        analysis,
+        blueprint,
+        plan: strudelPlan,
+      },
+      { signal, onProgress },
+    );
+    if (studioSeed) await library.saveStudioSeed(songId, studioSeed);
     return {
       blueprint,
-      strudelPlan: creativeBlueprintToStrudelPlan(blueprint),
+      strudelPlan,
+      studioSeed,
     };
   }
 
