@@ -59,8 +59,6 @@ function authorityScore(candidate) {
   if (candidate.isOfficial) return 1;
   if (candidate.isTopic) return 0.95;
   if (candidate.isPublisher) return 0.88;
-  const channel = normalizeMusicText(candidate.channel);
-  if (channel.endsWith(" topic")) return 0.9;
   return 0.35;
 }
 
