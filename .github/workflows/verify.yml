@@ -21,4 +21,6 @@ jobs:
           node-version: "22"
           cache: npm
       - run: npm ci
+      - run: npm run schemas:generate
+      - run: git diff --exit-code -- schemas
       - run: npm run verify
