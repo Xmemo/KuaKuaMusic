@@ -77,7 +77,10 @@ function variantPenalty(targetTitle, candidateTitle) {
 
 export function scoreAudioCandidate(song, candidate) {
   const title = textSimilarity(song.title, candidate.title);
-  const artist = textSimilarity(song.artist, candidate.artistHint || candidate.title);
+  const artist = textSimilarity(
+    song.artist,
+    candidate.artistHint || candidate.title + " " + candidate.channel,
+  );
   const duration = durationSimilarity(song.durationSec, candidate.durationSec);
   const albumVersion =
     song.album && candidate.albumHint
