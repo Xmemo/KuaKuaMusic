@@ -274,10 +274,10 @@ export interface V2CriticAnalysis {
   createdAt: string;
   provider: { name: string; model: string };
   overallVibe: {
-    hook: string;
-    emo: string;
-    hype: string;
-    pro: string;
+    hook: { text: string; interpretationIds: string[] };
+    emo: { text: string; interpretationIds: string[] };
+    hype: { text: string; interpretationIds: string[] };
+    pro: { text: string; interpretationIds: string[] };
   };
   interpretations: CriticInterpretation[];
   modules: CriticModule[];
