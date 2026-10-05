@@ -203,6 +203,25 @@ export interface MusicObservationDocument {
   }>;
 }
 
+export type ResearchTopic =
+  | "identity"
+  | "culture"
+  | "harmony"
+  | "rhythm"
+  | "timbre"
+  | "arrangement"
+  | "structure"
+  | "production";
+
+export interface ResearchFinding {
+  id: string;
+  topic: ResearchTopic;
+  text: string;
+  evidenceIds: string[];
+  scope: "work" | "source_version" | "recording";
+  versionScope: string;
+}
+
 export interface ResearchArtifact {
   schemaVersion: "2.0";
   researchRunId: string;
@@ -213,6 +232,55 @@ export interface ResearchArtifact {
   guidedByObservationIds: string[];
   sourceIds: string[];
   summary: string;
+  findings: ResearchFinding[];
+  unknowns: string[];
+}
+
+export type CriticCategory = "culture" | MusicObservationCategory;
+
+export interface CriticInterpretation {
+  id: string;
+  category: CriticCategory;
+  text: string;
+  observationIds: string[];
+  evidenceIds: string[];
+  generalPrinciples: string[];
+}
+
+export interface CriticModule {
+  id: string;
+  category: CriticCategory;
+  title: string;
+  summary: string;
+  interpretationIds: string[];
+  listeningCues: Array<{
+    text: string;
+    startSec: number | null;
+    endSec: number | null;
+    observationIds: string[];
+    evidenceIds: string[];
+  }>;
+  unknowns: string[];
+  expandable: boolean;
+  studioPotential: "none" | "rhythm" | "harmony" | "arrangement" | "mixed";
+}
+
+export interface V2CriticAnalysis {
+  schemaVersion: "2.0";
+  analysisId: string;
+  songId: string;
+  listenRunId: string | null;
+  researchRunId: string | null;
+  createdAt: string;
+  provider: { name: string; model: string };
+  overallVibe: {
+    hook: string;
+    emo: string;
+    hype: string;
+    pro: string;
+  };
+  interpretations: CriticInterpretation[];
+  modules: CriticModule[];
   unknowns: string[];
 }
 
