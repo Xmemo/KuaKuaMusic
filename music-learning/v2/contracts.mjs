@@ -11,7 +11,7 @@ const object = (properties) => ({
   properties,
 });
 
-const category = choice([
+const categoryValues = [
   "rhythm",
   "harmony",
   "melody",
@@ -20,6 +20,31 @@ const category = choice([
   "structure",
   "production",
   "energy",
+];
+const category = choice(categoryValues);
+const criticCategory = choice(["culture", ...categoryValues]);
+const researchTopic = choice([
+  "identity",
+  "culture",
+  "harmony",
+  "rhythm",
+  "timbre",
+  "arrangement",
+  "structure",
+  "production",
+]);
+const creativeVariableType = choice([
+  "tempo",
+  "rhythmic_density",
+  "subdivision",
+  "syncopation",
+  "layer_entry",
+  "register",
+  "motif_repetition",
+  "harmonic_rhythm",
+  "texture_density",
+  "filter_motion",
+  "timbre_brightness",
 ]);
 
 const observation = object({
@@ -57,6 +82,78 @@ const estimatedParameter = object({
   value: { type: ["string", "number", "null"] },
   confidence: number01,
 });
+
+const researchFinding = object({
+  id: string,
+  topic: researchTopic,
+  text: string,
+  evidenceIds: array(string),
+  scope: choice(["work", "source_version", "recording"]),
+  versionScope: string,
+});
+
+const criticInterpretation = object({
+  id: string,
+  category: criticCategory,
+  text: string,
+  observationIds: array(string),
+  evidenceIds: array(string),
+  generalPrinciples: array(string),
+});
+
+const criticModule = object({
+  id: string,
+  category: criticCategory,
+  title: string,
+  summary: string,
+  interpretationIds: array(string),
+  listeningCues: array(
+    object({
+      text: string,
+      startSec: nullableNumber,
+      endSec: nullableNumber,
+      observationIds: array(string),
+      evidenceIds: array(string),
+    }),
+  ),
+  unknowns: array(string),
+  expandable: { type: "boolean" },
+  studioPotential: choice(["none", "rhythm", "harmony", "arrangement", "mixed"]),
+});
+
+const overallVibe = object({
+  hook: string,
+  emo: string,
+  hype: string,
+  pro: string,
+});
+
+const criticDraft = {
+  overallVibe,
+  interpretations: array(criticInterpretation),
+  modules: array(criticModule),
+  unknowns: array(string),
+};
+
+const creativeVariable = object({
+  id: string,
+  type: creativeVariableType,
+  baseline: string,
+  variation: string,
+  sourceObservationIds: array(string),
+});
+
+const creativeDraft = {
+  title: string,
+  concept: string,
+  sourceObservationIds: array(string),
+  sourceInterpretationIds: array(string),
+  variables: array(creativeVariable),
+  preserve: array(string),
+  listenFor: array(string),
+  limitations: array(string),
+  studioEligible: { type: "boolean" },
+};
 
 export const v2Contracts = {
   "v2-music-observation": {
@@ -102,10 +199,7 @@ export const v2Contracts = {
       uncertainties: array(
         object({
           topic: {
-            anyOf: [
-              category,
-              choice(["identity", "other"]),
-            ],
+            anyOf: [category, choice(["identity", "other"])],
           },
           text: string,
         }),
@@ -144,6 +238,61 @@ export const v2Contracts = {
     }),
   },
 
+  "v2-research-draft": {
+    $schema: "https://json-schema.org/draft/2020-12/schema",
+    title: "MusicLearning2026 ResearchDraft v2.0",
+    ...object({
+      summary: string,
+      findings: array(researchFinding),
+      unknowns: array(string),
+    }),
+  },
+
+  "v2-research-artifact": {
+    $schema: "https://json-schema.org/draft/2020-12/schema",
+    title: "MusicLearning2026 ResearchArtifact v2.0",
+    ...object({
+      schemaVersion: { const: "2.0" },
+      researchRunId: string,
+      songId: string,
+      createdAt: string,
+      provider: object({ name: string, model: string }),
+      backend: choice(["registered-web", "provider-native", "codex-web"]),
+      guidedByObservationIds: array(string),
+      sourceIds: array(string),
+      summary: string,
+      findings: array(researchFinding),
+      unknowns: array(string),
+    }),
+  },
+
+  "v2-critic-draft": {
+    $schema: "https://json-schema.org/draft/2020-12/schema",
+    title: "MusicLearning2026 CriticDraft v2.0",
+    ...object(criticDraft),
+  },
+
+  "v2-critic-analysis": {
+    $schema: "https://json-schema.org/draft/2020-12/schema",
+    title: "MusicLearning2026 CriticAnalysis v2.0",
+    ...object({
+      schemaVersion: { const: "2.0" },
+      analysisId: string,
+      songId: string,
+      listenRunId: nullableString,
+      researchRunId: nullableString,
+      createdAt: string,
+      provider: object({ name: string, model: string }),
+      ...criticDraft,
+    }),
+  },
+
+  "v2-creative-draft": {
+    $schema: "https://json-schema.org/draft/2020-12/schema",
+    title: "MusicLearning2026 CreativeBlueprintDraft v2.0",
+    ...object(creativeDraft),
+  },
+
   "v2-creative-blueprint": {
     $schema: "https://json-schema.org/draft/2020-12/schema",
     title: "MusicLearning2026 CreativeBlueprint v2.0",
@@ -152,35 +301,7 @@ export const v2Contracts = {
       blueprintId: string,
       songId: string,
       analysisId: string,
-      title: string,
-      concept: string,
-      sourceObservationIds: array(string),
-      sourceInterpretationIds: array(string),
-      variables: array(
-        object({
-          id: string,
-          type: choice([
-            "tempo",
-            "rhythmic_density",
-            "subdivision",
-            "syncopation",
-            "layer_entry",
-            "register",
-            "motif_repetition",
-            "harmonic_rhythm",
-            "texture_density",
-            "filter_motion",
-            "timbre_brightness",
-          ]),
-          baseline: string,
-          variation: string,
-          sourceObservationIds: array(string),
-        }),
-      ),
-      preserve: array(string),
-      listenFor: array(string),
-      limitations: array(string),
-      studioEligible: { type: "boolean" },
+      ...creativeDraft,
     }),
   },
 };
