@@ -1,0 +1,147 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MusicLearning2026 Strudel Studio Seed v2.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "studioSeedId",
+    "blueprintId",
+    "songId",
+    "analysisId",
+    "sourceType",
+    "sourceObservationIds",
+    "sourceInterpretationIds",
+    "code",
+    "alternativeCode",
+    "explanation",
+    "visualHints",
+    "experiment",
+    "playback"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "2.0"
+    },
+    "studioSeedId": {
+      "type": "string"
+    },
+    "blueprintId": {
+      "type": "string"
+    },
+    "songId": {
+      "type": "string"
+    },
+    "analysisId": {
+      "type": "string"
+    },
+    "sourceType": {
+      "const": "learning_reconstruction"
+    },
+    "sourceObservationIds": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "sourceInterpretationIds": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "code": {
+      "type": "string"
+    },
+    "alternativeCode": {
+      "type": "string"
+    },
+    "explanation": {
+      "type": "string"
+    },
+    "visualHints": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "pianoroll",
+          "punchcard",
+          "spiral",
+          "scope",
+          "spectrum",
+          "pitchwheel"
+        ]
+      }
+    },
+    "experiment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "question",
+        "variable",
+        "baseline",
+        "changed",
+        "constants",
+        "listenFor",
+        "limitation"
+      ],
+      "properties": {
+        "question": {
+          "type": "string"
+        },
+        "variable": {
+          "type": "string"
+        },
+        "baseline": {
+          "type": "string"
+        },
+        "changed": {
+          "type": "string"
+        },
+        "constants": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "listenFor": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "limitation": {
+          "type": "string"
+        }
+      }
+    },
+    "playback": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "bpm",
+        "beatsPerCycle",
+        "soundBank",
+        "runtimeVersion"
+      ],
+      "properties": {
+        "bpm": {
+          "type": "number",
+          "minimum": 20,
+          "maximum": 300
+        },
+        "beatsPerCycle": {
+          "type": "number",
+          "minimum": 0.25,
+          "maximum": 32
+        },
+        "soundBank": {
+          "type": "string"
+        },
+        "runtimeVersion": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}
