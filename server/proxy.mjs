@@ -136,6 +136,12 @@ export function createApp({
       route(async (_req, res) => res.json(v2.providerPlan())),
     );
     app.post(
+      "/api/agent/v2/analyze",
+      researchRoute(async (body, context) =>
+        v2.analyze(body, context),
+      ),
+    );
+    app.post(
       "/api/agent/v2/materialize",
       researchRoute(async (body, context) =>
         v2.materialize(body, context),
