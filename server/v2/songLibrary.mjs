@@ -19,11 +19,12 @@ function slug(value) {
 }
 
 function stableSongKey(song) {
+  // The Song Package is the cross-platform song-level container.
+  // Album/year differences belong to identity snapshots and media revisions,
+  // otherwise the same selected song fragments into separate local packages.
   return [
     cleanText(song.title).toLocaleLowerCase(),
     cleanText(song.artist).toLocaleLowerCase(),
-    cleanText(song.album).toLocaleLowerCase(),
-    cleanText(song.releaseYear),
   ].join("|");
 }
 
