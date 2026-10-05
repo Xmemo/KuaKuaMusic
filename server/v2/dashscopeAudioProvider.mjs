@@ -4,6 +4,8 @@ import crypto from "node:crypto";
 import { AppError } from "../errors.mjs";
 import { validateContract } from "../schemaValidation.mjs";
 
+export const DASHSCOPE_LISTEN_PROMPT_VERSION = "listen-v2.0.0";
+
 function required(value, label) {
   const result = String(value || "").trim();
   if (!result) {
@@ -243,7 +245,7 @@ export function createDashScopeAudioProvider({
       provider: {
         name: "dashscope",
         model,
-        promptVersion: "listen-v2.0.0",
+        promptVersion: DASHSCOPE_LISTEN_PROMPT_VERSION,
       },
       globalProfile: value.globalProfile,
       timeline: value.timeline,
