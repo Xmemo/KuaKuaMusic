@@ -127,14 +127,14 @@
         "type": "string"
       }
     },
-    "updatedAt": {
-      "type": "string"
-    },
     "studioSeedIds": {
       "type": "array",
       "items": {
         "type": "string"
       }
+    },
+    "updatedAt": {
+      "type": "string"
     }
   }
 }
