@@ -16,6 +16,7 @@ export function runProcess(
     let stdout = "";
     let stderr = "";
     let outputBytes = 0;
+    let timer = null;
 
     const child = spawn(command, args, {
       cwd,
@@ -26,7 +27,7 @@ export function runProcess(
     const finish = (fn, value) => {
       if (settled) return;
       settled = true;
-      clearTimeout(timer);
+      if (timer) clearTimeout(timer);
       signal?.removeEventListener("abort", onAbort);
       fn(value);
     };
@@ -99,7 +100,7 @@ export function runProcess(
       );
     });
 
-    const timer = setTimeout(() => {
+    timer = setTimeout(() => {
       terminate();
       finish(
         reject,
