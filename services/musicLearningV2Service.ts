@@ -11,7 +11,7 @@ import type {
   V2StudioSeed,
 } from "../music-learning/v2/types";
 
-const BASE = (import.meta.env.VITE_BACKEND_API_BASE_URL || "").replace(
+const BASE = (import.meta.env?.VITE_BACKEND_API_BASE_URL || "").replace(
   /\/$/,
   "",
 );
