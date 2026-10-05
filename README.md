@@ -4,7 +4,7 @@
 
 产品基线仍是 [PRD v0.3 冻结版](docs/MUSICLEARNING2026_PRD_V0.3_FROZEN.md)。**目标架构已升级为 [Audio-first v2.0](docs/TECHNICAL_ARCHITECTURE_V2.md)**：歌曲将先实体化为本地 Song Package，由可替换的 Audio Provider 独立 Listen，再独立 Research，最后 Critic 综合并生成可映射到 Strudel 的 Creative Blueprint。
 
-> 迁移状态：v2.0 已冻结并开始搭骨架；当前默认 `/api/agent/analyze` 仍运行 v1.2，直到真实音频链路在本机验收通过。v1.2 文档见 [技术架构 v1.2](docs/TECHNICAL_ARCHITECTURE_V1.2.md)，底层服务与保存边界见 [v1.1](docs/TECHNICAL_ARCHITECTURE_V1.1.md)。
+> 迁移状态：v2.0 后端主链已经实现到 **YouTube Materialize → Local Song Package → Qwen Listen → independent Research → Critic → Creative Blueprint → validated Strudel A/B Seed**，并保留缓存与单边失败降级。当前默认 `/api/agent/analyze` 仍运行 v1.2；在真实 Mac + DashScope + yt-dlp/ffmpeg 完成一首歌曲端到端验收前，不切默认前端。v1.2 文档见 [技术架构 v1.2](docs/TECHNICAL_ARCHITECTURE_V1.2.md)。
 
 ## v2.0 目标流水线
 
@@ -32,7 +32,7 @@ npm run dev
 
 打开 `http://127.0.0.1:3000`。前端和 API 仅绑定本机回环地址。
 
-v2 Provider 配置已加入 `.env.example`，但 `MUSIC_V2_ENABLED=0` 默认关闭；在 audio acquisition、DashScope Listen adapter 和真实 Song Package E2E 完成前，不会替换可工作的 v1.2 路径。
+v2 Provider 配置已加入 `.env.example`，但 `MUSIC_V2_ENABLED=0` 默认关闭。打开后会新增 `/api/agent/v2/*` 路由；其中 `POST /api/agent/v2/analyze` 是一键入口。真实 Song Package E2E 完成前，不会替换可工作的 v1.2 默认路由。
 
 ## 当前 v1.2 可用范围
 
@@ -46,10 +46,10 @@ v2 Provider 配置已加入 `.env.example`，但 `MUSIC_V2_ENABLED=0` 默认关�
 
 代码位于 `music-learning/v2/`：
 
-- `types.ts`：Song Package、MusicObservationDocument、Provider Plan、Creative Blueprint。
+- `types.ts`：Song Package、MusicObservationDocument、Research/Critic Artifact、Provider Plan、Creative Blueprint、Studio Seed。
 - `providerRegistry.mjs`：角色化 Provider 与 capability 校验。
 - `sourceMatcher.mjs`：音源候选评分和自动/人工选择阈值。
-- `contracts.mjs`：v2 Song Package / Observation / Creative Blueprint JSON Schema 来源。
+- `contracts.mjs`：v2 Song Package / Observation / Research / Critic / Creative / Studio Seed JSON Schema 来源。
 
 v2 schemas 会和现有 schemas 一起通过：
 
@@ -79,7 +79,7 @@ Critic    = codex-cli / GPT
 Creative  = cheaper structured-text model
 ```
 
-Codex CLI 目前在 v2 registry 中声明为 text/research provider，不声明 audio capability，因此不会误被选作 Listen。
+Codex CLI 目前在 v2 registry 中声明为 text/research provider，不声明 audio capability，因此不会误被选作 Listen。Critic/Creative 使用 Codex CLI 时，会真正采用各角色配置的 model，并关闭 Web/MCP research tools，只读取已保存 Artifact。
 
 ## 保存与验证
 
@@ -90,10 +90,27 @@ npm run schemas:generate
 npm run verify
 ```
 
-新增回归覆盖 v2 source matcher 和 provider switching。自动测试不能代替真实音频的本机验收。
+新增回归覆盖 v2 source matcher、provider switching、Song Package revision/cache、Critic/Creative provenance 与 Strudel Seed runtime policy。自动测试不能代替真实音频的本机验收。
 
 ## 兼容与部署
 
 歌曲搜索仍由 `/api/music/search` 提供。旧 UI 和 Agnes 本机 API 默认关闭；确有兼容需求时分别设置 `VITE_ENABLE_LEGACY_UI=1`、`MUSIC_LEARNING_ENABLE_LEGACY=1`。
 
 v2 的 Local Song Package 代表音频与 artifact 缓存在本机；如果 Listen Provider 选择 DashScope 或 SiliconFlow，音频仍会发送到对应云端模型。完全本地化将通过替换 AudioUnderstandingProvider 实现，不改变上层 pipeline。
+
+
+## v2 本机 API（feature flag）
+
+设置 `MUSIC_V2_ENABLED=1` 后，沿用现有本机 session token 与 loopback 安全边界：
+
+| 接口 | 用途 |
+| --- | --- |
+| `POST /api/agent/v2/analyze` | 一键执行 Materialize → Listen + Research → Critic → Creative → Studio Seed；低置信音源时返回待确认候选 |
+| `POST /api/agent/v2/materialize` | 单独建立/复用本地 Song Package 音频 |
+| `POST /api/agent/v2/listen` | 单独执行或复用 Listen Artifact |
+| `POST /api/agent/v2/research` | 单独执行或复用 independent Research Artifact |
+| `POST /api/agent/v2/critic` | 用已保存 Listen/Research 生成 Critic Analysis |
+| `POST /api/agent/v2/creative` | Critic → Creative Blueprint → validated Strudel Seed |
+| `GET /api/agent/v2/provider-plan` | 查看当前四个角色实际使用的 provider/model/capabilities |
+
+同一 media revision + 同一 Listen provider/model/promptVersion 默认复用 Observation。Independent Research 默认缓存 168 小时，可用 `MUSIC_RESEARCH_CACHE_TTL_HOURS=0` 关闭。Listen 或 Research 任一失败时，一键 pipeline 会用另一边继续 Critic；两边都失败才终止。Creative 需要 Audio Observation，因此 Research-only 降级时不会伪造 Studio。
