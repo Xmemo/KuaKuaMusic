@@ -135,9 +135,20 @@ Channel authority 优先：官方艺人频道、Topic、发行商/厂牌、游�
 ### 4.4 自动 / 人工阈值
 
 - `best >= 0.88` 且领先第二名 `>= 0.08`：**高置信自动选择**。
-- `best >= 0.75` 且领先第二名 `>= 0.05`：**中置信自动选择 + Listen 后 sanity check**。
+- `best >= 0.75` 且领先第二名 `>= 0.05`：**先人工确认，再下载和 Listen**；尚未实现内容级自动版本核对，因此不自动放行。
 - 其他情况：**显示 Top 3 让用户选择**。
-- 后续 sanity check 发现时长、版本类型或内容明显冲突时，不覆盖记录，创建新的 media revision。
+- 下载后由 ffprobe 实测分析音频时长。与目录时长相差超过 `max(10 秒, 5%)` 的自动匹配先暂停，用户确认后才可 Listen；人工已选版本保留警示。更换音源创建新的 media revision，确认同一个待确认下载可以复用该 revision。
+- 自动音源的标题、频道、链接、时长和匹配分数始终可检查；「更换音源」重新列出候选。匹配分数不是正确版本的概率。
+
+### 4.4.1 录音缓存与结果边界
+
+- Song Package 仍按 title + artist 聚合，media 保存独立的目录身份快照。
+- 音频缓存必须匹配 title、artist、album、releaseYear、有效 durationSec、sourcePlatform、sourceTrackUrl 的身份摘要，且音频文件仍存在。
+- Listen 按 media revision、provider、model、promptVersion 复用；Research 另校验目录身份摘要、promptVersion 和 TTL，旧缺少这些字段的缓存重新生成。
+- Listen/Research 同时保存时，manifest 的读取、修改、写入在本机单个 API 进程中串行化；原子替换仅保证单文件落盘。当前不支持多个 API 进程同时写同一 library。
+- Listen 的 sections、observations、notableMoments 检查范围、重复 ID 和引用；显著时刻必须由局部观察覆盖。Critic 精确时间线索必须位于实测时长内，且由 time_localized 观察覆盖。
+- DashScope 文本和音频请求使用 SSE；JSON Object 模式仍发送完整合同形状并在本机校验。格式失败最多补一次；Listen 与 Critic 另外对语义验证失败补一次。鉴权、网络和取消不作为格式修复重试。
+- 页面预检包括 yt-dlp、ffmpeg、ffprobe、所选 Provider 的密钥是否配置，以及 registered-web 需要的 Codex CLI/登录/MusicBrainz。预检不调用付费模型。
 
 ### 4.5 Acquisition Provenance
 
@@ -460,7 +471,7 @@ v2 SSE 建议：
 
 ### P1
 
-- YouTube resolver 的真实候选搜索与 source sanity check。
+- YouTube resolver 的真实候选搜索、人工版本确认与下载后时长校验；内容级自动版本核对尚待实现。
 - Local File Provider。
 - Deep Dive re-listen。
 - Style Prior / Music Description Corpus。

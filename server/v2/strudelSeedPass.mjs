@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { parse } from "acorn";
 import { AppError, invariant } from "../errors.mjs";
 import { validateContract } from "../schemaValidation.mjs";
 import { createStructuredTextProvider } from "./textProvider.mjs";
@@ -47,6 +48,7 @@ function seedPrompt(blueprint, plan, correction = "") {
     "Use only mechanisms represented in STRUDEL PLAN. Do not infer exact original notes, chords, instruments, or production settings.",
     "visualHints must be a subset of the visual hints supplied by STRUDEL PLAN.",
     "experiment.variable names the changed mechanism; constants state what remains fixed; limitation must explicitly say this is a learning reconstruction rather than the original transcription.",
+    "experiment.variable must be the exact type of ONE variable in STRUDEL PLAN. Change only that variable and preserve other conditions. For tempo, apply the same fast/slow ratio to the whole pattern; the player base BPM is shared.",
     "BLUEPRINT:\n" + serialize(blueprint),
     "STRUDEL PLAN:\n" + serialize(plan),
     correction,
@@ -68,9 +70,12 @@ function validateDraft(draft, plan) {
     );
   }
   invariant(
-    draft.code.trim() !== draft.alternativeCode.trim(),
+    JSON.stringify(parse(draft.code, { ecmaVersion: 2022 }), (key, value) => ["start", "end", "raw"].includes(key) ? undefined : value) !==
+      JSON.stringify(parse(draft.alternativeCode, { ecmaVersion: 2022 }), (key, value) => ["start", "end", "raw"].includes(key) ? undefined : value),
     "Studio A/B 两个条件不能完全相同。",
   );
+  invariant(plan.variables.some((item) => item.type === draft.experiment.variable),
+    "Studio A/B 的变量必须是 Blueprint 中定义的一个变量类型。");
   const allowed = new Set(plan.visualHints || []);
   for (const hint of draft.visualHints) {
     invariant(ALLOWED_VISUALS.has(hint), "Studio visual hint 无效。");
@@ -119,7 +124,7 @@ export function createStrudelSeedPass({
     try {
       draft = await generate();
     } catch (error) {
-      if (signal?.aborted) throw error;
+      if (signal?.aborted || !["V2_STUDIO_SEED_INVALID_CODE", "EVIDENCE_INTEGRITY"].includes(error.code)) throw error;
       draft = await generate(
         "The previous attempt failed app validation. Generate a simpler pattern using only the allowed built-in sounds and supported Strudel musical expressions. Do not repeat the invalid construct.",
       );

@@ -1,5 +1,5 @@
 const VARIABLE_MAP = Object.freeze({
-  tempo: { operations: ["setcpm"], visualHints: ["punchcard"] },
+  tempo: { operations: ["fast", "slow"], visualHints: ["punchcard"] },
   rhythmic_density: {
     operations: ["sequence", "subdivision", "fast"],
     visualHints: ["punchcard"],

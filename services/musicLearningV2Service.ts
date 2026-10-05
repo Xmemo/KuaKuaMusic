@@ -39,6 +39,22 @@ export interface V2Progress {
   stage: V2PipelineStage;
   label: string;
 }
+export interface V2Health {
+  ok: boolean;
+  checks: Array<{ id: string; label: string; status: "ready" | "missing"; message: string }>;
+}
+export async function getV2Health(): Promise<V2Health> {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const response = await fetch(BASE + "/api/agent/v2/health?refresh=1", {
+      cache: "no-store", headers: { "X-Music-Learning-Token": await getSession() },
+    });
+    if (response.status === 401 && !attempt) { session = null; continue; }
+    const payload = await response.json().catch(() => null);
+    if (!response.ok) throw new Error(payload?.error || "请启用本机 v2 服务后再检查配置。");
+    return payload as V2Health;
+  }
+  throw new Error("本机会话不可用。");
+}
 
 export interface V2StrudelPlan {
   eligible: boolean;
@@ -78,6 +94,7 @@ export type V2AnalyzeResponse =
       songId: string;
       song: CanonicalSong;
       candidates: ScoredAudioSourceCandidate[];
+      reason?: string;
     }
   | {
       status: "complete" | "partial";
@@ -85,7 +102,10 @@ export type V2AnalyzeResponse =
       materialization: {
         reused: boolean;
         mediaRevisionId: string;
+        source: { sourceId: string; url: string; title: string; channel: string; durationSec: number; matchScore: number; decision: string };
+        identityWarning: string | null;
       };
+      cache: { audio: boolean; listen: boolean; research: boolean };
       observation: MusicObservationDocument | null;
       research: ResearchArtifact | null;
       sources: EvidenceSource[];
@@ -132,27 +152,32 @@ async function requestV2WithProgress(
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
-  while (true) {
-    const { value, done } = await reader.read();
-    buffer += decoder.decode(value, { stream: !done });
-    let boundary = buffer.indexOf("\n\n");
-    while (boundary >= 0) {
-      const frame = buffer.slice(0, boundary);
-      buffer = buffer.slice(boundary + 2);
-      const event = frame.match(/^event:\s*(.+)$/m)?.[1]?.trim();
-      const data = frame.match(/^data:\s*(.+)$/m)?.[1];
-      if (event && data) {
-        const payload = JSON.parse(data);
-        if (event === "progress") onProgress?.(payload as V2Progress);
-        else if (event === "error")
-          throw new Error(payload.error || "v2 分析未能完成。");
-        else if (event === "result") return payload as V2AnalyzeResponse;
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      buffer += decoder.decode(value, { stream: !done });
+      let boundary = buffer.indexOf("\n\n");
+      while (boundary >= 0) {
+        const frame = buffer.slice(0, boundary);
+        buffer = buffer.slice(boundary + 2);
+        const event = frame.match(/^event:\s*(.+)$/m)?.[1]?.trim();
+        const data = frame.match(/^data:\s*(.+)$/m)?.[1];
+        if (event && data) {
+          const payload = JSON.parse(data);
+          if (event === "progress") onProgress?.(payload as V2Progress);
+          else if (event === "error")
+            throw new Error((payload.stage ? payload.stage + "：" : "") + (payload.error || "v2 分析未能完成。"));
+          else if (event === "result") return payload as V2AnalyzeResponse;
+        }
+        boundary = buffer.indexOf("\n\n");
       }
-      boundary = buffer.indexOf("\n\n");
+      if (done) break;
     }
-    if (done) break;
+    throw new Error("v2 分析连接中断，未收到完整结果。");
+  } finally {
+    await reader.cancel().catch(() => {});
+    reader.releaseLock();
   }
-  throw new Error("v2 分析连接中断，未收到完整结果。");
 }
 
 export function analyzeSongV2(

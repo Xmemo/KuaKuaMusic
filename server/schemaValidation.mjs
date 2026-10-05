@@ -13,6 +13,11 @@ const validators = Object.fromEntries(
     ajv.compile(schema),
   ]),
 );
+export function getContract(name) {
+  const schema = v2Contracts[name] || contracts[name];
+  if (!schema) throw new AppError("未知的数据契约。", "INVALID_CONTRACT", 422);
+  return schema;
+}
 export function validateContract(name, value) {
   const validate = validators[name];
   if (!validate || !validate(value)) {

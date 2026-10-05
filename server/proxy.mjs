@@ -88,6 +88,7 @@ export function createApp({
         );
       active = true;
       const controller = new AbortController();
+      let stage = "starting";
       const stream = req.get("accept")?.includes("text/event-stream");
       if (stream) {
         res.status(200);
@@ -108,7 +109,7 @@ export function createApp({
         try {
           const result = await operation(req.body, {
             signal: controller.signal,
-            onProgress: (value) => send("progress", value),
+            onProgress: (value) => { stage = value.stage || stage; send("progress", value); },
           });
           if (!controller.signal.aborted) {
             if (stream) {
@@ -120,6 +121,7 @@ export function createApp({
           if (!stream) throw error;
           const known = error instanceof AppError;
           send("error", {
+            stage,
             code: known ? error.code : "INTERNAL_ERROR",
             error: known ? error.message : "本机研究服务未能完成请求。",
           });
@@ -131,6 +133,7 @@ export function createApp({
       }
     });
   if (v2) {
+    app.get("/api/agent/v2/health", route(async (req, res) => res.json(await v2.health({ refresh: req.query.refresh === "1" }))));
     app.get(
       "/api/agent/v2/provider-plan",
       route(async (_req, res) => res.json(v2.providerPlan())),

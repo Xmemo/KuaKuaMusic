@@ -3,6 +3,17 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { AppError } from "../errors.mjs";
 
+// All instances in the local API process share this queue. Atomic rename protects
+// individual files; the queue also protects read/modify/write manifest updates.
+const manifestUpdates = new Map();
+async function serializedManifest(file, operation) {
+  const previous = manifestUpdates.get(file) || Promise.resolve();
+  const current = previous.catch(() => {}).then(operation);
+  manifestUpdates.set(file, current);
+  try { return await current; }
+  finally { if (manifestUpdates.get(file) === current) manifestUpdates.delete(file); }
+}
+
 function cleanText(value) {
   return String(value || "").replace(/\s+/gu, " ").trim();
 }
@@ -35,6 +46,15 @@ export function deriveSongId(song) {
     .digest("hex")
     .slice(0, 10);
   return slug(song.title + "-" + song.artist) + "--" + hash;
+}
+
+export function deriveCatalogIdentityKey(song) {
+  return crypto.createHash("sha256").update(JSON.stringify([
+    cleanText(song.title).toLocaleLowerCase(), cleanText(song.artist).toLocaleLowerCase(),
+    cleanText(song.album), cleanText(song.releaseYear),
+    Number(song.durationSec) > 0 ? Number(song.durationSec) : null,
+    cleanText(song.sourcePlatform || song.platform), cleanText(song.sourceTrackUrl || song.trackUrl),
+  ])).digest("hex");
 }
 
 function assertId(value, label) {
@@ -80,11 +100,11 @@ export function createSongLibrary({
       artist,
       album: cleanText(song.album) || null,
       releaseYear: cleanText(song.releaseYear) || null,
-      durationSec: Number.isFinite(Number(song.durationSec))
+      durationSec: Number.isFinite(Number(song.durationSec)) && Number(song.durationSec) > 0
         ? Number(song.durationSec)
         : null,
-      sourcePlatform: cleanText(song.platform) || null,
-      sourceTrackUrl: cleanText(song.trackUrl) || null,
+      sourcePlatform: cleanText(song.sourcePlatform || song.platform) || null,
+      sourceTrackUrl: cleanText(song.sourceTrackUrl || song.trackUrl) || null,
     };
     return { songId: deriveSongId(base), ...base };
   }
@@ -101,38 +121,41 @@ export function createSongLibrary({
     await fs.mkdir(path.join(dir, "studio"), { recursive: true });
 
     const manifestPath = path.join(dir, "manifest.json");
-    let manifest;
-    try {
-      manifest = await readJson(manifestPath);
-    } catch (error) {
-      if (error?.code !== "ENOENT") throw error;
-      const now = new Date().toISOString();
+    return serializedManifest(manifestPath, async () => {
+      let manifest;
+      try {
+        manifest = await readJson(manifestPath);
+      } catch (error) {
+        if (error?.code !== "ENOENT") throw error;
+        const now = new Date().toISOString();
+        manifest = {
+          schemaVersion: "2.0",
+          song,
+          currentMediaRevisionId: null,
+          mediaRevisions: [],
+          observationRunIds: [],
+          researchRunIds: [],
+          analysisIds: [],
+          blueprintIds: [],
+          studioSeedIds: [],
+          updatedAt: now,
+        };
+        await writeJsonAtomic(manifestPath, manifest);
+      }
       manifest = {
-        schemaVersion: "2.0",
+        ...manifest,
         song,
-        currentMediaRevisionId: null,
-        mediaRevisions: [],
-        observationRunIds: [],
-        researchRunIds: [],
-        analysisIds: [],
-        blueprintIds: [],
-        studioSeedIds: [],
-        updatedAt: now,
+        mediaRevisions: manifest.mediaRevisions || [],
+        observationRunIds: manifest.observationRunIds || [],
+        researchRunIds: manifest.researchRunIds || [],
+        analysisIds: manifest.analysisIds || [],
+        blueprintIds: manifest.blueprintIds || [],
+        studioSeedIds: manifest.studioSeedIds || [],
       };
       await writeJsonAtomic(manifestPath, manifest);
-    }
-    manifest = {
-      ...manifest,
-      mediaRevisions: manifest.mediaRevisions || [],
-      observationRunIds: manifest.observationRunIds || [],
-      researchRunIds: manifest.researchRunIds || [],
-      analysisIds: manifest.analysisIds || [],
-      blueprintIds: manifest.blueprintIds || [],
-      studioSeedIds: manifest.studioSeedIds || [],
-    };
-    await writeJsonAtomic(manifestPath, manifest);
-    await writeJsonAtomic(path.join(dir, "identity.json"), song);
-    return { dir, song, manifest };
+      await writeJsonAtomic(path.join(dir, "identity.json"), song);
+      return { dir, song, manifest };
+    });
   }
 
   async function allocateMediaRevision(songId) {
@@ -159,20 +182,22 @@ export function createSongLibrary({
       media.acquisition,
     );
 
-    const manifest = await loadManifest(songId);
-    if (!manifest.mediaRevisions.some(
-      (item) => item.mediaRevisionId === media.mediaRevisionId,
-    )) {
-      manifest.mediaRevisions.push({
-        mediaRevisionId: media.mediaRevisionId,
-        createdAt: media.createdAt,
-        sha256: media.acquisition.sha256,
-      });
-    }
-    manifest.currentMediaRevisionId = media.mediaRevisionId;
-    manifest.updatedAt = new Date().toISOString();
-    await writeJsonAtomic(path.join(songDir(songId), "manifest.json"), manifest);
-    return manifest;
+    return serializedManifest(path.join(songDir(songId), "manifest.json"), async () => {
+      const manifest = await loadManifest(songId);
+      if (!manifest.mediaRevisions.some(
+        (item) => item.mediaRevisionId === media.mediaRevisionId,
+      )) {
+        manifest.mediaRevisions.push({
+          mediaRevisionId: media.mediaRevisionId,
+          createdAt: media.createdAt,
+          sha256: media.acquisition.sha256,
+        });
+      }
+      manifest.currentMediaRevisionId = media.mediaRevisionId;
+      manifest.updatedAt = new Date().toISOString();
+      await writeJsonAtomic(path.join(songDir(songId), "manifest.json"), manifest);
+      return manifest;
+    });
   }
 
   async function getCurrentMedia(songId) {
@@ -196,11 +221,13 @@ export function createSongLibrary({
   }
 
   async function appendManifestId(songId, field, value) {
-    const manifest = await loadManifest(songId);
-    if (!manifest[field].includes(value)) manifest[field].push(value);
-    manifest.updatedAt = new Date().toISOString();
-    await writeJsonAtomic(path.join(songDir(songId), "manifest.json"), manifest);
-    return manifest;
+    return serializedManifest(path.join(songDir(songId), "manifest.json"), async () => {
+      const manifest = await loadManifest(songId);
+      if (!manifest[field].includes(value)) manifest[field].push(value);
+      manifest.updatedAt = new Date().toISOString();
+      await writeJsonAtomic(path.join(songDir(songId), "manifest.json"), manifest);
+      return manifest;
+    });
   }
 
   function latestId(values, label) {
@@ -233,11 +260,11 @@ export function createSongLibrary({
     return readJson(path.join(songDir(songId), "observations", id + ".json"));
   }
 
-  async function saveResearch(songId, artifact, sources) {
+  async function saveResearch(songId, artifact, sources, cacheMetadata = {}) {
     assertId(artifact.researchRunId, "researchRunId");
     await writeJsonAtomic(
       path.join(songDir(songId), "research", artifact.researchRunId + ".json"),
-      { artifact, sources },
+      { artifact, sources, ...cacheMetadata },
     );
     return appendManifestId(songId, "researchRunIds", artifact.researchRunId);
   }
@@ -326,7 +353,7 @@ export function createSongLibrary({
 
   async function findReusableResearch(
     songId,
-    { provider, model, backend, maxAgeMs },
+    { provider, model, backend, maxAgeMs, catalogIdentityKey, promptVersion },
   ) {
     const manifest = await loadManifest(songId);
     const cutoff = Date.now() - Math.max(0, Number(maxAgeMs) || 0);
@@ -340,6 +367,8 @@ export function createSongLibrary({
         value?.provider?.name === provider &&
         value?.provider?.model === model &&
         value?.backend === backend &&
+        (!catalogIdentityKey || record.catalogIdentityKey === catalogIdentityKey) &&
+        (!promptVersion || record.promptVersion === promptVersion) &&
         (maxAgeMs === Infinity || (Number.isFinite(created) && created >= cutoff)) &&
         (value.guidedByObservationIds || []).length === 0
       ) return record;

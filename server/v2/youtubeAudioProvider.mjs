@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import crypto from "node:crypto";
 import { createReadStream } from "node:fs";
 import { chooseAudioSource, normalizeMusicText } from "../../music-learning/v2/sourceMatcher.mjs";
 import { AppError } from "../errors.mjs";
@@ -41,7 +42,7 @@ function mapEntry(entry, song) {
     artistHint,
     albumHint: String(entry.album || "").trim() || null,
     channel,
-    durationSec: Number.isFinite(Number(entry.duration))
+    durationSec: Number.isFinite(Number(entry.duration)) && Number(entry.duration) > 0
       ? Number(entry.duration)
       : null,
     isOfficial,
@@ -66,6 +67,7 @@ export function createYouTubeAudioProvider({
 } = {}) {
   const ytDlp = env.MUSIC_YTDLP_BIN || "yt-dlp";
   const ffmpeg = env.MUSIC_FFMPEG_BIN || "ffmpeg";
+  const ffprobe = env.MUSIC_FFPROBE_BIN || "ffprobe";
 
   async function search(song, { signal, onProgress } = {}) {
     const found = new Map();
@@ -171,11 +173,19 @@ export function createYouTubeAudioProvider({
       ],
       { signal, timeoutMs: 180000, maxOutputBytes: 1024 * 1024 },
     );
+    const probe = await runner(ffprobe, ["-v", "error", "-show_entries", "format=duration", "-of", "json", analysisPath],
+      { signal, timeoutMs: 30000, maxOutputBytes: 1024 * 1024 });
+    let durationSec;
+    try { durationSec = Number(JSON.parse(probe.stdout || "{}").format?.duration); }
+    catch { durationSec = NaN; }
+    if (!Number.isFinite(durationSec) || durationSec <= 0)
+      throw new AppError("无法确认本地音频的实际时长。", "V2_AUDIO_DURATION_INVALID", 422);
 
     return {
       sourcePath,
       analysisPath,
       analysisMimeType: "audio/mpeg",
+      durationSec,
       sha256: await sha256File(sourcePath),
       acquisition: {
         provider: "youtube",

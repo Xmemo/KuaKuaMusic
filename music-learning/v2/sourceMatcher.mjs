@@ -45,7 +45,7 @@ export function textSimilarity(left, right) {
 }
 
 function durationSimilarity(target, candidate) {
-  if (!Number.isFinite(target) || !Number.isFinite(candidate)) return null;
+  if (!Number.isFinite(target) || !Number.isFinite(candidate) || target <= 0 || candidate <= 0) return null;
   const delta = Math.abs(target - candidate);
   if (delta <= 2) return 1;
   if (delta <= 5) return 0.9;
@@ -144,10 +144,10 @@ export function chooseAudioSource(song, candidates) {
   }
   if (best.matchScore >= 0.75 && gap >= 0.05) {
     return {
-      decision: "auto_medium",
+      decision: "manual_required",
       requiresSanityCheck: true,
-      selected: best,
-      candidates: scored.slice(0, 10),
+      selected: null,
+      candidates: scored.slice(0, 3),
     };
   }
   return {

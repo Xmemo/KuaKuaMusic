@@ -1,8 +1,10 @@
 
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { searchSongs } from "./services/musicService";
 import {
   analyzeSongV2,
+  getV2Health,
+  type V2Health,
   type V2AnalyzeResponse,
   type V2Progress,
 } from "./services/musicLearningV2Service";
@@ -11,6 +13,8 @@ import { SourcesPanel } from "./components/EvidencePanel";
 import StudioPlayer from "./components/StudioPlayer";
 
 const modeLabels = { emo: "走心", hype: "上头", pro: "懂行" } as const;
+const coreLabels = { culture: "文化与背景", harmony: "和声", rhythm: "律动", timbre: "音色" } as const;
+const scopeLabels = { work: "作品背景", source_version: "来源所谈版本", recording: "录音版本" } as const;
 
 function formatTime(seconds: number) {
   const value = Math.max(0, Math.round(seconds));
@@ -26,30 +30,49 @@ function rangeLabel(start: number | null, end: number | null) {
 export default function V2App() {
   const [query, setQuery] = useState("");
   const [matches, setMatches] = useState<SongMetadata[]>([]);
+  const [visibleMatches, setVisibleMatches] = useState(60);
   const [selected, setSelected] = useState<SongMetadata | null>(null);
   const [result, setResult] = useState<V2AnalyzeResponse | null>(null);
   const [mode, setMode] = useState<keyof typeof modeLabels>("emo");
   const [busy, setBusy] = useState("");
   const [progress, setProgress] = useState<V2Progress | null>(null);
   const [error, setError] = useState("");
+  const [health, setHealth] = useState<V2Health | null>(null);
+  const [healthError, setHealthError] = useState("");
+  const [checking, setChecking] = useState(false);
   const controller = useRef<AbortController | null>(null);
+
+  async function checkHealth() {
+    setChecking(true);
+    setHealthError("");
+    try { setHealth(await getV2Health()); }
+    catch (cause) { setHealthError((cause as Error).message); }
+    finally { setChecking(false); }
+  }
+  useEffect(() => {
+    void checkHealth();
+    return () => controller.current?.abort();
+  }, []);
 
   async function search(event: React.FormEvent) {
     event.preventDefault();
     if (!query.trim() || busy) return;
+    controller.current?.abort();
+    controller.current = new AbortController();
     setBusy("正在搜索歌曲");
     setError("");
     setResult(null);
     try {
-      setMatches(await searchSongs(query));
+      setMatches(await searchSongs(query, controller.current.signal));
+      setVisibleMatches(60);
     } catch (cause) {
-      setError((cause as Error).message);
+      if ((cause as Error).name !== "AbortError") setError((cause as Error).message);
     } finally {
       setBusy("");
     }
   }
 
-  async function run(song: SongMetadata, selectedSourceId: string | null = null) {
+  async function run(song: SongMetadata, selectedSourceId: string | null = null, forceRematch = false) {
     controller.current?.abort();
     controller.current = new AbortController();
     setSelected(song);
@@ -62,7 +85,7 @@ export default function V2App() {
         song,
         {
           selectedSourceId,
-          forceRematch: Boolean(selectedSourceId),
+          forceRematch: forceRematch || Boolean(selectedSourceId),
         },
         controller.current.signal,
         (next) => {
@@ -103,6 +126,16 @@ export default function V2App() {
           </p>
         </section>
 
+        <details className="panel" open={health?.ok === false || Boolean(healthError)}>
+          <summary>本机准备状态 · {checking ? "正在检查" : health?.ok ? "工具与配置已就绪" : "需要检查"}</summary>
+          <p className="muted">检查工具、登录和密钥是否配置；模型可用性在实际调用时确认。</p>
+          {health?.checks.map((item) => (
+            <p key={item.id}><strong>{item.label}：{item.status === "ready" ? "已就绪" : "未就绪"}</strong> · {item.message}</p>
+          ))}
+          {healthError ? <p className="notice">{healthError}</p> : null}
+          <button disabled={checking} onClick={() => void checkHealth()}>重新检查配置</button>
+        </details>
+
         <form className="panel input-panel" onSubmit={search}>
           <label htmlFor="v2-song-query">歌曲链接、歌名或艺人</label>
           <div className="input-row">
@@ -133,8 +166,9 @@ export default function V2App() {
         {matches.length ? (
           <section className="panel">
             <h2>选择歌曲</h2>
+            <p className="muted">找到 {matches.length} 条候选，已展示 {Math.min(visibleMatches, matches.length)} 条。</p>
             <div className="song-grid">
-              {matches.slice(0, 60).map((song, index) => (
+              {matches.slice(0, visibleMatches).map((song, index) => (
                 <button
                   className="song-choice"
                   key={(song.id || song.title) + index}
@@ -147,6 +181,7 @@ export default function V2App() {
                 </button>
               ))}
             </div>
+            {visibleMatches < matches.length ? <button disabled={!!busy} onClick={() => setVisibleMatches((count) => count + 60)}>显示更多候选</button> : null}
           </section>
         ) : null}
 
@@ -154,12 +189,13 @@ export default function V2App() {
           <section className="panel">
             <p className="eyebrow">需要确认音源</p>
             <h2>YouTube 找到几个相近版本</h2>
-            <p className="muted">自动匹配置信度不够高。选中后会创建新的 media revision。</p>
+            <p className="muted">请先打开候选音源核对版本，再选择要分析的录音。</p>
+            {result.reason ? <p className="notice">{result.reason}</p> : null}
             <div className="song-grid">
               {result.candidates.map((candidate) => (
+                <div key={candidate.sourceId}>
                 <button
                   className="song-choice"
-                  key={candidate.sourceId}
                   disabled={!!busy}
                   onClick={() => run(selected, candidate.sourceId)}
                 >
@@ -170,6 +206,8 @@ export default function V2App() {
                     {candidate.durationSec ? " · " + formatTime(candidate.durationSec) : ""}
                   </small>
                 </button>
+                <a href={candidate.url} target="_blank" rel="noreferrer">打开音源核对</a>
+                </div>
               ))}
             </div>
           </section>
@@ -186,6 +224,14 @@ export default function V2App() {
                 </div>
                 <span className="tag">{completed.status === "complete" ? "完整完成" : "降级完成"}</span>
               </div>
+              <details open>
+                <summary>本轮分析的录音音源</summary>
+                <p><a href={completed.materialization.source.url} target="_blank" rel="noreferrer">{completed.materialization.source.title}</a></p>
+                <p className="muted">{completed.materialization.source.channel} · 实测 {formatTime(completed.materialization.source.durationSec)} · 匹配分数 {Math.round(completed.materialization.source.matchScore * 100)}% · {completed.materialization.source.decision === "manual_selected" ? "人工确认" : "自动匹配"}</p>
+                {completed.materialization.identityWarning ? <p className="notice">{completed.materialization.identityWarning}</p> : null}
+                <button disabled={!!busy} onClick={() => selected && run(selected, null, true)}>更换音源</button>
+              </details>
+              <p className="muted">本轮缓存：音频{completed.cache.audio ? "复用" : "新建"} · Listen {completed.cache.listen ? "复用" : "新建"} · Research {completed.research ? completed.cache.research ? "复用" : "新建" : "未完成"}</p>
               <p className="overview-hook preserve-lines">{analysis.overallVibe.hook.text}</p>
               <div className="mode-tabs" role="group" aria-label="三种概括">
                 {(Object.entries(modeLabels) as Array<[keyof typeof modeLabels, string]>).map(([key, label]) => (
@@ -202,6 +248,15 @@ export default function V2App() {
                   ))}
                 </div>
               ) : null}
+            </section>
+
+            <section className="panel" aria-label="四个核心维度">
+              <div className="experiment-grid">
+                {Object.entries(coreLabels).map(([category, label]) => (
+                  <div key={category}><strong>{label}</strong><p>{analysis.modules.some((module) => module.category === category) ? "已有解读" : "资料不足"}</p></div>
+                ))}
+              </div>
+              {analysis.unknowns.length ? <p className="notice">尚未确认：{analysis.unknowns.join("；")}</p> : null}
             </section>
 
             {completed.observation ? (
@@ -283,6 +338,24 @@ export default function V2App() {
                     {module.studioPotential !== "none" ? (
                       <span className="tag">可实验 · {module.studioPotential}</span>
                     ) : null}
+                    {module.unknowns.length ? <p className="notice">限制：{module.unknowns.join("；")}</p> : null}
+                    <details>
+                      <summary>依据与适用范围</summary>
+                      {interpretations.map((item) => (
+                        <div key={item.id}>
+                          {item.observationIds.map((id) => {
+                            const observation = completed.observation?.observations.find((entry) => entry.id === id);
+                            return observation ? <p key={id}><strong>机器听觉观察</strong> · {rangeLabel(observation.startSec, observation.endSec)} {observation.statement}（置信度 {Math.round(observation.confidence * 100)}%）</p> : null;
+                          })}
+                          {item.evidenceIds.map((id) => {
+                            const source = completed.sources.find((entry) => entry.excerpts.some((excerpt) => excerpt.id === id));
+                            const excerpt = source?.excerpts.find((entry) => entry.id === id);
+                            const finding = completed.research?.findings.find((entry) => entry.evidenceIds.includes(id));
+                            return source && excerpt ? <p key={id}><a href={source.url} target="_blank" rel="noreferrer">{source.title}</a> · {finding ? scopeLabels[finding.scope] + " · " + finding.versionScope : "按来源描述范围理解"}<br />{excerpt.text}</p> : null;
+                          })}
+                        </div>
+                      ))}
+                    </details>
                   </article>
                 );
               })}
@@ -294,8 +367,9 @@ export default function V2App() {
                 <h2>外部资料独立查到了什么</h2>
                 <p>{completed.research.summary}</p>
                 {completed.research.findings.map((finding) => (
-                  <p key={finding.id}><strong>{finding.topic}</strong> · {finding.text}</p>
+                  <div key={finding.id}><p><strong>{finding.topic}</strong> · {finding.text}</p><p className="muted">{scopeLabels[finding.scope]} · {finding.versionScope}</p></div>
                 ))}
+                {completed.research.unknowns.length ? <p className="notice">资料缺口：{completed.research.unknowns.join("；")}</p> : null}
               </section>
             ) : (
               <p className="notice">本轮 Research 失败；Critic 仅使用 Audio Observation 与通用音乐原理。</p>
@@ -334,6 +408,8 @@ export default function V2App() {
                   <strong>B：</strong>{completed.creative.studioSeed.experiment.changed}
                 </p>
                 <p className="notice">{completed.creative.studioSeed.experiment.limitation}</p>
+                <p className="muted">保持不变：{completed.creative.studioSeed.experiment.constants.join("、")}</p>
+                <p>试听比较：{completed.creative.studioSeed.experiment.listenFor.join("；")}</p>
                 <StudioPlayer
                   code={completed.creative.studioSeed.code}
                   baseline={completed.creative.studioSeed.code}

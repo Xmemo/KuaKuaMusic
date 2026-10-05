@@ -11,16 +11,23 @@ import {
 } from "../server/v2/creativeStrudelBridge.mjs";
 
 const observation = {
+  timeline: { durationSec: 120 },
   observations: [
     {
       id: "obs-rhythm-1",
       category: "rhythm",
       statement: "重复脉冲在转折前保持稳定。",
+      precision: "time_localized",
+      startSec: 70,
+      endSec: 85,
     },
     {
       id: "obs-arrangement-1",
       category: "arrangement",
       statement: "转折后层次明显增加。",
+      precision: "time_localized",
+      startSec: 70,
+      endSec: 90,
     },
   ],
 };

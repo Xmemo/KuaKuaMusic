@@ -58,9 +58,10 @@ async function callAgnes(prompt: string, options: { jsonMode?: boolean; temperat
   return data.text;
 }
 
-export const searchSongs = async (query: string): Promise<SongMetadata[]> => {
+export const searchSongs = async (query: string, signal?: AbortSignal): Promise<SongMetadata[]> => {
   const response = await fetch(
-    BACKEND_BASE_URL + "/api/music/search?q=" + encodeURIComponent(query.trim())
+    BACKEND_BASE_URL + "/api/music/search?q=" + encodeURIComponent(query.trim()),
+    { signal },
   );
   const data = (await response.json().catch(() => ({}))) as ApiResponse<{ songs?: SongMetadata[] }>;
   if (!response.ok) throw new Error(data.error || "歌曲搜索失败，请稍后重试。");

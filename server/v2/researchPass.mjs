@@ -5,6 +5,7 @@ import { createStructuredTextProvider } from "./textProvider.mjs";
 import { createRegisteredWebResearchBackend } from "./registeredWebResearch.mjs";
 
 const serialize = (value) => JSON.stringify(value, null, 2);
+export const RESEARCH_PROMPT_VERSION = "research-v2.0.1";
 
 function evidenceIndex(sources) {
   return new Map(

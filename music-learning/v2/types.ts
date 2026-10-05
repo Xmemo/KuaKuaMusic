@@ -93,6 +93,10 @@ export interface MediaRevision {
   analysisPath: string;
   analysisMimeType: string;
   durationSec: number | null;
+  catalogIdentityKey?: string;
+  catalogSong?: CanonicalSong;
+  candidate?: ScoredAudioSourceCandidate;
+  identityWarning?: string;
 }
 
 export interface SongPackageManifest {

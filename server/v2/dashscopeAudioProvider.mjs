@@ -2,9 +2,11 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import crypto from "node:crypto";
 import { AppError } from "../errors.mjs";
-import { validateContract } from "../schemaValidation.mjs";
+import { getContract } from "../schemaValidation.mjs";
+import { validateMusicObservation } from "./observationValidation.mjs";
+import { providerSignal, readProviderText } from "./providerTransport.mjs";
 
-export const DASHSCOPE_LISTEN_PROMPT_VERSION = "listen-v2.0.0";
+export const DASHSCOPE_LISTEN_PROMPT_VERSION = "listen-v2.0.1";
 
 function required(value, label) {
   const result = String(value || "").trim();
@@ -14,70 +16,7 @@ function required(value, label) {
   return result;
 }
 
-function extractTextContent(payload) {
-  const content = payload?.choices?.[0]?.message?.content;
-  if (typeof content === "string") return content;
-  if (Array.isArray(content)) {
-    return content
-      .map((item) =>
-        typeof item === "string"
-          ? item
-          : typeof item?.text === "string"
-            ? item.text
-            : "",
-      )
-      .join("")
-      .trim();
-  }
-  return "";
-}
-
-export async function readDashScopeStreamText(response) {
-  if (!response.body?.getReader) {
-    const payload = await response.json().catch(() => null);
-    return extractTextContent(payload);
-  }
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  let text = "";
-
-  const consume = (line) => {
-    const value = line.trim();
-    if (!value.startsWith("data:")) return;
-    const data = value.slice(5).trim();
-    if (!data || data === "[DONE]") return;
-    let payload;
-    try {
-      payload = JSON.parse(data);
-    } catch {
-      return;
-    }
-    const delta = payload?.choices?.[0]?.delta?.content;
-    if (typeof delta === "string") text += delta;
-    else if (Array.isArray(delta))
-      text += delta
-        .map((item) =>
-          typeof item === "string"
-            ? item
-            : typeof item?.text === "string"
-              ? item.text
-              : "",
-        )
-        .join("");
-  };
-
-  while (true) {
-    const { value, done } = await reader.read();
-    buffer += decoder.decode(value || new Uint8Array(), { stream: !done });
-    const lines = buffer.split(/\r?\n/u);
-    buffer = lines.pop() || "";
-    for (const line of lines) consume(line);
-    if (done) break;
-  }
-  if (buffer.trim()) consume(buffer);
-  return text.trim();
-}
+export const readDashScopeStreamText = readProviderText;
 
 function parseJson(text) {
   try {
@@ -103,11 +42,16 @@ function formatFor(file) {
   return ["wav", "mp3", "aac"].includes(ext) ? ext : "mp3";
 }
 
-function listenPrompt(song, correction = "") {
+function listenPrompt(song, durationSec, correction = "") {
+  const fields = ["globalProfile", "timeline", "observations", "notableMoments", "estimatedParameters", "uncertainties"];
+  const schema = { type: "object", additionalProperties: false, required: fields,
+    properties: Object.fromEntries(fields.map((key) => [key, getContract("v2-music-observation").properties[key]])) };
   return [
     "You are the Listen Pass for MusicLearning2026.",
     "Listen to the supplied recording independently. Do not use web search, reviews, biographies, release history, or remembered external facts.",
-    "Return JSON only. This is an observation document, not a review.",
+    "Return JSON only. Write descriptions in Simplified Chinese. This is an observation document, not a review.",
+    "The measured local audio duration is " + durationSec + " seconds. All ranges must fit this duration; global observations use null times. Notable moments must cite local observations covering their range.",
+    "Complete output JSON Schema: " + JSON.stringify(schema),
     "Describe only what can reasonably be heard in this audio. Timestamps are seconds from the beginning.",
     "Do not pretend to have an exact score or transcription. BPM, key and meter belong only in estimatedParameters and must include confidence.",
     "Do not explain why listeners feel an emotion; save causal interpretation for a later Critic pass.",
@@ -153,7 +97,7 @@ export function createDashScopeAudioProvider({
     policyEndpoint.searchParams.set("model", model);
     const policyResponse = await fetcher(policyEndpoint, {
       method: "GET",
-      signal,
+      signal: providerSignal(signal),
       headers: {
         Authorization: "Bearer " + apiKey(),
         "Content-Type": "application/json",
@@ -197,7 +141,7 @@ export function createDashScopeAudioProvider({
 
     const uploadResponse = await fetcher(policy.upload_host, {
       method: "POST",
-      signal,
+      signal: providerSignal(signal),
       body: form,
     });
     if (!uploadResponse.ok) {
@@ -216,11 +160,12 @@ export function createDashScopeAudioProvider({
     model,
     song,
     correction,
+    durationSec,
     signal,
   }) {
     const response = await fetcher(baseUrl + "/chat/completions", {
       method: "POST",
-      signal,
+      signal: providerSignal(signal),
       headers: {
         Authorization: "Bearer " + apiKey(),
         "Content-Type": "application/json",
@@ -239,7 +184,7 @@ export function createDashScopeAudioProvider({
                   format: formatFor(audioPath),
                 },
               },
-              { type: "text", text: listenPrompt(song, correction) },
+              { type: "text", text: listenPrompt(song, durationSec, correction) },
             ],
           },
         ],
@@ -273,18 +218,13 @@ export function createDashScopeAudioProvider({
     audioPath,
     song,
     mediaRevisionId,
+    durationSec,
     model,
     signal,
   }) {
+    if (!Number.isFinite(durationSec) || durationSec <= 0)
+      throw new AppError("Listen 需要本地音频的有效时长。", "V2_AUDIO_DURATION_INVALID", 422);
     const audioUrl = await uploadTemporary(audioPath, model, signal);
-    let raw = await requestObservation({
-      audioUrl,
-      audioPath,
-      model,
-      song,
-      signal,
-    });
-
     const build = (value) => ({
       schemaVersion: "2.0",
       listenRunId: crypto.randomUUID(),
@@ -297,26 +237,24 @@ export function createDashScopeAudioProvider({
         promptVersion: DASHSCOPE_LISTEN_PROMPT_VERSION,
       },
       globalProfile: value.globalProfile,
-      timeline: value.timeline,
+      timeline: value.timeline ? { ...value.timeline, durationSec } : value.timeline,
       observations: value.observations,
       notableMoments: value.notableMoments,
       estimatedParameters: value.estimatedParameters,
       uncertainties: value.uncertainties,
     });
 
-    try {
-      return validateContract("v2-music-observation", build(raw));
-    } catch (error) {
-      raw = await requestObservation({
-        audioUrl,
-        audioPath,
-        model,
-        song,
-        signal,
-        correction:
-          "Your previous JSON failed the required contract. Return the complete JSON object again with every required key and no extra prose.",
-      });
-      return validateContract("v2-music-observation", build(raw));
+    let correction = "";
+    for (let attempt = 0; attempt < 2; attempt++) {
+      let raw;
+      try {
+        raw = await requestObservation({ audioUrl, audioPath, model, song, durationSec, signal, correction });
+        return validateMusicObservation(build(raw), { durationSec });
+      } catch (error) {
+        if (signal?.aborted || attempt || !["INVALID_CONTRACT", "EVIDENCE_INTEGRITY", "V2_LISTEN_INVALID_JSON"].includes(error.code)) throw error;
+        correction = "Repair the validation error: " + error.message +
+          "\nReturn the complete corrected JSON. Previous output:\n" + JSON.stringify(raw || null);
+      }
     }
   }
 

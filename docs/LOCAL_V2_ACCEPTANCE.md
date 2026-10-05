@@ -5,6 +5,8 @@
 
 ## 1. 准备分支
 
+使用 Node.js 22 或更新版本，先用 `node --version` 确认。
+
 ```bash
 git fetch origin
 git switch arch/music-learning-v2-audio-first-2026-10-05
@@ -17,9 +19,12 @@ npm ci
 ```bash
 yt-dlp --version
 ffmpeg -version
+ffprobe -version
 ```
 
 如果命令不存在，再按你机器现有的软件管理方式安装；不要为了本次测试修改系统代理、浏览器 Cookie 或 YouTube 登录状态。
+
+可通过 `MUSIC_YTDLP_BIN`、`MUSIC_FFMPEG_BIN`、`MUSIC_FFPROBE_BIN` 指定已有工具的绝对路径。
 
 ## 3. 配置 .env.local
 
@@ -47,6 +52,8 @@ DASHSCOPE_UPLOAD_URL=https://dashscope.aliyuncs.com/api/v1/uploads
 ```
 
 默认 Research 缓存为 168 小时。首次验收不用改。
+
+`registered-web` 由本机 Codex CLI 读取网页并登记片段，再交给所选 Research 模型整理；配置 DashScope Key 之后仍需 **Codex CLI 已登录、项目 exec 配置可用、MusicBrainz MCP 可用及网页网络访问**。启动后查看页面「本机准备状态」，它只检查依赖及密钥是否配置，不证明密钥有效或歌曲内容质量达标。
 
 ## 4. 启动
 
@@ -77,7 +84,9 @@ http://127.0.0.1:3000
 确认：
 
 - 自动选到的不是 cover / live / remix / slowed / extended 等错误版本；
-- 如果置信度不足，页面展示 Top 3 候选并允许人工确认；
+- 中等置信度及相近候选均先展示 Top 3，让用户打开音源确认；
+- 下载后用 ffprobe 实测时长，若与目录相差超过 10 秒或 5%（取较大值），在 Listen 前暂停确认；人工选定的版本仍显示时长差异说明；
+- 结果页展示实际音源的标题、频道、链接、实测时长与匹配分数；「更换音源」可重新选择；
 - 选定后本地出现：
   `.music-learning/library/<song-id>/media/<media-revision-id>/`
 - 目录中有 acquisition metadata、source audio 和 `analysis.mp3`。
@@ -110,6 +119,8 @@ http://127.0.0.1:3000
 - 三种总体概括是否真的不同；
 - 是否避免“把一般风格特征说成本曲已确认事实”；
 - 秒级听歌提示是否来自 Audio Observation。
+- 超出实际音频、倒置的时间范围、不存在的观察引用必须被拒绝；精确线索不能仅引用全局观察。
+- 作品背景、来源所谈版本与所选录音的适用范围明确，资料缺口可见。
 
 ### E. Creative / Strudel
 
@@ -131,7 +142,11 @@ http://127.0.0.1:3000
 - 本地音频直接复用，不重新下载；
 - 相同 media revision + Listen model + prompt version 时复用 Listen；
 - 近期 independent Research 默认复用；
+- 页面分别显示音频、Listen、Research 是否复用；
+- 再选同名歌曲的不同专辑、时长或平台链接时，必须重新匹配；原 media revision 和分析 artifact 保留；
 - Critic / Creative 可以重新生成，因为它们是解释与创作层。
+
+当前 manifest 更新在单个本机 API 进程内串行化，避免 Listen/Research 并发保存丢失索引。不要启动两个 API 进程同时写同一个 library 目录。
 
 ## 8. 验收结果
 

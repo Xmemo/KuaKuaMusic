@@ -1,5 +1,6 @@
 import { AppError } from "../errors.mjs";
-import { validateContract } from "../schemaValidation.mjs";
+import { getContract, validateContract } from "../schemaValidation.mjs";
+import { providerSignal, readProviderText } from "./providerTransport.mjs";
 import {
   runCodexStructured,
   schemaPath,
@@ -15,24 +16,6 @@ function required(value, label) {
     );
   }
   return result;
-}
-
-function extractContent(payload) {
-  const content = payload?.choices?.[0]?.message?.content;
-  if (typeof content === "string") return content;
-  if (Array.isArray(content)) {
-    return content
-      .map((item) =>
-        typeof item === "string"
-          ? item
-          : typeof item?.text === "string"
-            ? item.text
-            : "",
-      )
-      .join("")
-      .trim();
-  }
-  return "";
 }
 
 function parseJson(text, provider) {
@@ -57,12 +40,16 @@ async function openAiCompatibleJson({
   fetcher,
   signal,
   extraHeaders = {},
+  correction = "",
 }) {
+  const stream = provider === "DashScope";
+  const schemaPrompt = prompt + "\n\nReturn a JSON object matching this complete JSON Schema. All required fields and enum values are mandatory:\n" +
+    JSON.stringify(getContract(schemaName)) + (correction ? "\n\n" + correction : "");
   const response = await fetcher(
     String(baseUrl).replace(/\/$/u, "") + "/chat/completions",
     {
       method: "POST",
-      signal,
+      signal: providerSignal(signal),
       headers: {
         Authorization: "Bearer " + required(apiKey, provider + " API Key"),
         "Content-Type": "application/json",
@@ -76,14 +63,16 @@ async function openAiCompatibleJson({
             content:
               "Return one complete JSON object only. Do not use Markdown fences.",
           },
-          { role: "user", content: prompt },
+          { role: "user", content: schemaPrompt },
         ],
         response_format: { type: "json_object" },
+        ...(stream ? { stream: true, stream_options: { include_usage: true } } : {}),
+        ...(/omni/iu.test(model) ? { modalities: ["text"] } : {}),
       }),
     },
   );
-  const payload = await response.json().catch(() => null);
   if (!response.ok) {
+    const payload = await response.json().catch(() => null);
     throw new AppError(
       provider +
         " 文本模型调用失败。" +
@@ -92,7 +81,7 @@ async function openAiCompatibleJson({
       502,
     );
   }
-  const text = extractContent(payload);
+  const text = await readProviderText(response);
   if (!text) {
     throw new AppError(
       provider + " 没有返回文本结果。",
@@ -100,7 +89,14 @@ async function openAiCompatibleJson({
       502,
     );
   }
-  return validateContract(schemaName, parseJson(text, provider));
+  try {
+    return validateContract(schemaName, parseJson(text, provider));
+  } catch (error) {
+    if (signal?.aborted || correction || !["INVALID_CONTRACT", "V2_PROVIDER_INVALID_JSON"].includes(error.code)) throw error;
+    return openAiCompatibleJson({ baseUrl, apiKey, model, prompt, schemaName, provider, fetcher, signal, extraHeaders,
+      correction: "Repair the previous response. Validation error: " + error.message +
+        "\nPrevious response (possibly truncated):\n" + text.slice(0, 16000) + "\nReturn the complete corrected JSON object." });
+  }
 }
 
 export function createStructuredTextProvider(

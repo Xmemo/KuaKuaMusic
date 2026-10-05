@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { AppError, invariant } from "../errors.mjs";
 import { validateContract } from "../schemaValidation.mjs";
 import { createStructuredTextProvider } from "./textProvider.mjs";
+import { validateTimedCue } from "./observationValidation.mjs";
 
 const serialize = (value) => JSON.stringify(value, null, 2);
 
@@ -90,6 +91,7 @@ export function validateCriticReferences(
           cue.observationIds.length > 0,
           "精确时间听歌线索必须有 Audio Observation 支持。",
         );
+        validateTimedCue(cue, observation);
       }
     }
   }
@@ -103,6 +105,7 @@ function criticPrompt(song, observation, research, sources) {
     "Never rewrite a style prior or general genre stereotype as a fact about this song.",
     "AUDIO OBSERVATIONS are first-hand machine observations, not exact score/transcription measurements. Preserve their uncertainty and timestamps.",
     "RESEARCH FINDINGS are external claims and may only use the registered excerpt evidenceIds already provided.",
+    "Preserve each finding's scope and versionScope in your text: work-level background stays valid even if the recording is uncertain; source-version details must name that version and must not silently become facts about the selected recording. Keep relevant input unknowns visible.",
     "GENERAL PRINCIPLES may explain mechanisms such as repetition, contrast, density, register or timbre. Put those principles only in generalPrinciples; they do not need a song-specific citation, but they cannot introduce a new song fact.",
     "Every interpretation must reference at least one valid observationId or evidenceId. Prefer both when independent listening and human/external material converge.",
     "Do not invent BPM, exact chords, instruments, plugins or production processes that are absent from the inputs.",
@@ -148,12 +151,19 @@ export function createCriticPass({
       label: "正在把听到的内容与外部资料结合",
     });
 
-    const draft = await provider.generateJson({
+    let draft = await provider.generateJson({
       schemaName: "v2-critic-draft",
       prompt: criticPrompt(song, observation, research, sources),
       signal,
     });
-    validateCriticReferences(draft, { observation, sources });
+    try { validateCriticReferences(draft, { observation, sources }); }
+    catch (error) {
+      if (signal?.aborted) throw error;
+      draft = await provider.generateJson({ schemaName: "v2-critic-draft", signal,
+        prompt: criticPrompt(song, observation, research, sources) + "\n\nRepair this validation error: " + error.message +
+          "\nUse null cue timestamps unless time-localized observations cover the entire cue range. Previous draft:\n" + serialize(draft) });
+      validateCriticReferences(draft, { observation, sources });
+    }
 
     const analysis = {
       schemaVersion: "2.0",
