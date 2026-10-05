@@ -121,11 +121,15 @@ const criticModule = object({
   studioPotential: choice(["none", "rhythm", "harmony", "arrangement", "mixed"]),
 });
 
+const overviewExpression = object({
+  text: string,
+  interpretationIds: array(string),
+});
 const overallVibe = object({
-  hook: string,
-  emo: string,
-  hype: string,
-  pro: string,
+  hook: overviewExpression,
+  emo: overviewExpression,
+  hype: overviewExpression,
+  pro: overviewExpression,
 });
 
 const criticDraft = {
