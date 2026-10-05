@@ -305,6 +305,48 @@ export function createSongLibrary({
     return readJson(path.join(songDir(songId), "studio", id + ".json"));
   }
 
+  async function findReusableObservation(
+    songId,
+    { mediaRevisionId, provider, model, promptVersion },
+  ) {
+    const manifest = await loadManifest(songId);
+    for (const id of [...manifest.observationRunIds].reverse()) {
+      const value = await readJson(
+        path.join(songDir(songId), "observations", id + ".json"),
+      );
+      if (
+        value.mediaRevisionId === mediaRevisionId &&
+        value.provider?.name === provider &&
+        value.provider?.model === model &&
+        value.provider?.promptVersion === promptVersion
+      ) return value;
+    }
+    return null;
+  }
+
+  async function findReusableResearch(
+    songId,
+    { provider, model, backend, maxAgeMs },
+  ) {
+    const manifest = await loadManifest(songId);
+    const cutoff = Date.now() - Math.max(0, Number(maxAgeMs) || 0);
+    for (const id of [...manifest.researchRunIds].reverse()) {
+      const record = await readJson(
+        path.join(songDir(songId), "research", id + ".json"),
+      );
+      const value = record?.artifact;
+      const created = Date.parse(value?.createdAt || "");
+      if (
+        value?.provider?.name === provider &&
+        value?.provider?.model === model &&
+        value?.backend === backend &&
+        (maxAgeMs === Infinity || (Number.isFinite(created) && created >= cutoff)) &&
+        (value.guidedByObservationIds || []).length === 0
+      ) return record;
+    }
+    return null;
+  }
+
   return Object.freeze({
     root: libraryRoot,
     canonicalizeSong,
@@ -323,5 +365,7 @@ export function createSongLibrary({
     loadBlueprint,
     saveStudioSeed,
     loadStudioSeed,
+    findReusableObservation,
+    findReusableResearch,
   });
 }
