@@ -9,20 +9,6 @@ const repoRoot = path.resolve(
   "../..",
 );
 
-async function linkOrCopy(source, destination) {
-  try {
-    await fs.link(source, destination);
-  } catch (error) {
-    if (
-      error?.code !== "EXDEV" &&
-      error?.code !== "EPERM" &&
-      error?.code !== "EACCES"
-    )
-      throw error;
-    await fs.copyFile(source, destination);
-  }
-}
-
 export async function createAnalysisWorkspace({
   libraryRoot,
   song,
@@ -57,7 +43,7 @@ export async function createAnalysisWorkspace({
   ]);
 
   const audioPath = path.join(inputDir, "audio.mp3");
-  await linkOrCopy(media.analysisPath, audioPath);
+  await fs.copyFile(media.analysisPath, audioPath);
 
   const skillSource = path.join(
     repoRoot,
