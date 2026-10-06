@@ -18,6 +18,14 @@ function safeChildEnv(source = process.env) {
     "XDG_CONFIG_HOME",
     "XDG_CACHE_HOME",
     "XDG_DATA_HOME",
+    "HTTP_PROXY",
+    "HTTPS_PROXY",
+    "ALL_PROXY",
+    "NO_PROXY",
+    "http_proxy",
+    "https_proxy",
+    "all_proxy",
+    "no_proxy",
   ]);
   return Object.fromEntries(
     Object.entries(source).filter(([key]) => allow.has(key)),
