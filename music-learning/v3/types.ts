@@ -111,13 +111,12 @@ export interface V3AnalysisArtifact extends V3AnalysisDraft {
   mediaRevisionId: string;
   createdAt: string;
   agent: {
-    runner: "antigravity-cli";
+    runner: string;
     model: string;
-    effort: "low" | "medium" | "high";
-    skillVersion: string;
+    effort: string;
+    skill: { name: string; version: string };
     conversationId: string | null;
     toolsUsed: string[];
-    mcpToolsUsed: string[];
     usage: {
       inputTokens: number | null;
       outputTokens: number | null;
@@ -127,6 +126,7 @@ export interface V3AnalysisArtifact extends V3AnalysisDraft {
     };
     protocolChecks: {
       listenCheckpointExists: boolean;
+      noMcpDependency: boolean;
     };
   };
 }
