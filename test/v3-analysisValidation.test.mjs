@@ -180,6 +180,6 @@ test("eligible creative experiment must pass Strudel runtime validation", async 
         durationSec: 100,
         workspaceRoot: root,
       }),
-    /Studio|调用|不允许|白名单|fetch/i,
+    /不支持的 JavaScript 操作|fetch/i,
   );
 });
