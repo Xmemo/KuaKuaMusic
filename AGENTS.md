@@ -1,84 +1,94 @@
 # MusicLearning2026 Agent Rules
 
+## Current target: v3 Single Agent + Generic Skill
+
+The current target architecture is documented in:
+
+- `docs/TECHNICAL_ARCHITECTURE_V3.md`
+- `.agents/skills/music-analysis/SKILL.md`
+
+v1/v2 remain compatibility/reference paths. Do not apply their older “web evidence before every song-specific music claim” or mandatory MCP assumptions to the v3 route.
+
 ## Product objective
 
-Help the user understand a specific recording with verifiable evidence, then turn a selected musical mechanism into a small executable learning experiment.
+Help the user understand a specific recording, keep observation/measurement/source/interpretation boundaries visible, and optionally turn one supported mechanism into a small executable learning experiment.
 
-## Mandatory evidence rules
+## v3 architecture rules
 
-1. Treat song/recording identity as a first-class problem.
-2. Use the configured MusicBrainz MCP when identity, recording, work, release, credits, or version scope matters.
-3. Use web research for song-specific claims that MusicBrainz does not support.
-4. Search snippets are discovery aids, not evidence. Read the source when possible.
-5. Prefer primary or near-primary sources for creator/production claims.
-6. Never write a song-specific musical claim merely because it is plausible for the artist/genre.
-7. Never auto-fill key, BPM, chord progression, instrumentation, structure, or production technique without support.
-8. When evidence is insufficient, return an explicit unknown.
-9. Keep these epistemic categories separate:
-   - external_evidence
-   - user_perception
-   - machine_observation
-   - ai_interpretation
-   - general_theory
-   - unknown
-10. V1 has no authorized audio input. Do not claim to have listened to or measured the recording.
+1. The `music-analysis` Skill must remain model-agnostic and host-agnostic.
+2. Model/CLI/API details belong only in Runner adapters.
+3. Do not make v3 depend on MCP servers. Current v3 rejects a run that reports MCP tool use.
+4. Preserve the Listen-first checkpoint before external research.
+5. A precise numerical music claim must come from an executed measurement, not confident prose.
+6. Measurements are estimators; preserve ambiguity and alternatives when meaningful.
+7. External evidence must preserve a real URL and supporting source content.
+8. General music theory may explain a mechanism, but may not prove an unobserved song-specific feature.
+9. Unknown is a valid output.
+10. The server independently validates timestamps, IDs, references, measurement artifact paths, and Strudel code.
 
-## Analysis output
+## Four epistemic categories
 
-- Always assess culture, harmony, rhythm and timbre separately; identity metadata does not count as music-analysis coverage.
-- Show all four core dimensions and label each as analyzed, generic listening guidance, or insufficient evidence. Generic guidance never counts as analysis of the selected song.
-- Overall 走心 / 上头 / 懂行 variants must be meaningfully distinct, share the final evidence set, and be audited independently.
-- Structured modules start with a plain-language feature, then explain the supported mechanism and possible listener effect, offer concrete listening cues, and place citations/limits behind a collapsed details panel.
-- Omit unsupported/empty modules rather than filling a template.
-- Every supported song-specific claim must map to registered excerpt evidenceIds, with matching topic and version scope.
-- State whether a claim applies to the selected recording, the composition/work, a source's stated version, or general theory.
-- Every AI interpretation names prerequisite claim IDs; if a prerequisite is removed, remove dependent interpretations.
-- Audit identity fields and copy independently. Never discard valid work-level or source-version information solely because a release year or recording identity is uncertain.
-- Keep source facts distinct from the Agent's interpretation.
-- The first research round is capped at 3 searches / 5 pages. If any core dimension lacks song-specific evidence, allow exactly one targeted supplement round with the same limits and no more than 10 unique sources across both rounds.
+Keep separate:
 
-## Deep dive
+- observation
+- measurement
+- external_evidence
+- interpretation
 
-A deep dive must add evidence or explanatory depth. Do not merely expand wording.
+Do not create additional provenance labels unless they solve a real product problem.
 
-Return:
+## Recording identity
 
-- confirmed claims;
-- source-specific support;
-- AI interpretation;
-- relevant general theory;
-- conflicts;
-- unknowns;
-- listening cues;
-- Studio eligibility.
+Treat recording/version selection as first-class.
+
+The current local materializer:
+
+- searches candidate audio;
+- requires version confirmation;
+- records acquisition provenance;
+- measures actual duration;
+- caches media revisions locally.
+
+Do not silently reuse a different catalog/version snapshot.
+
+## Skill discipline
+
+The canonical Skill must not mention:
+
+- Gemini
+- Antigravity
+- Qwen
+- DashScope
+- SiliconFlow
+- KuaKuaMusic-specific UI
+- Strudel-specific product flow
+
+Product-specific instructions belong in the v3 product prompt and output schema.
 
 ## Studio
 
-Studio is Strudel-first.
+Studio remains Strudel-first at the application layer.
 
-Generate a Studio seed only when the selected deep dive has a useful rhythm or harmony experiment.
+Any Agent-generated code is a `learning_reconstruction` unless reliable matching transcription/score evidence exists and a future product flow explicitly upgrades provenance.
 
-Every seed must be labeled:
-
-- source_transcription
-- learning_reconstruction
-- user_version
-
-Default to learning_reconstruction unless a matching transcription/score/chord source supports the actual content.
-
-Prefer small, legible code that isolates the variable being taught. Add native visual hints when useful:
-
-- pianoroll / punchcard for notes and rhythmic placement;
-- spiral for cyclic rhythm;
-- scope for waveform/envelope;
-- spectrum for spectral/filter explanation;
-- pitchwheel for pitch-class explanation.
-
-Never claim a learning reconstruction is the original song.
+Server runtime policy remains authoritative. Do not bypass it because a model generated the code.
 
 ## Repository changes
 
-The AGPL licensing decision is recorded in docs/STRUDEL_LICENSE_DECISION.md. The pinned Strudel runtime is bundled behind an adapter boundary. Preserve upstream notices and corresponding source access. Generate musical expressions using the built-in synthesizers; do not generate browser/network operations or external sample-bank dependencies.
+The AGPL licensing decision is recorded in `docs/STRUDEL_LICENSE_DECISION.md`.
 
+Implementation contracts are defined in:
 
-Implementation contracts are defined in music-learning/contracts.mjs; regenerate schemas with npm run schemas:generate. Consult docs/TECHNICAL_ARCHITECTURE_V1.2.md for current analysis rules and docs/TECHNICAL_ARCHITECTURE_V1.1.md for API and persistence boundaries. Preserve independent analysis snapshots and every deep-dive turn. Never trust a client-supplied analysis or provenance label.
+- `music-learning/contracts.mjs` — legacy/current v1
+- `music-learning/v2/contracts.mjs` — v2 reference
+- `music-learning/v3/contracts.mjs` — v3 target
+
+Regenerate schemas with:
+
+```bash
+npm run schemas:generate
+```
+
+Generated-schema drift must remain CI-failing.
+
+Do not commit local audio, analysis workspaces, API keys, or credentials.
