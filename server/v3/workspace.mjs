@@ -47,7 +47,7 @@ export async function createAnalysisWorkspace({
   const inputDir = path.join(root, "input");
   const workDir = path.join(root, "work");
   const measurementsDir = path.join(root, "measurements");
-  const skillDir = path.join(root, ".agents", "skills", skillName);
+  const skillDir = path.join(root, "skill");
 
   await Promise.all([
     fs.mkdir(inputDir, { recursive: true }),
@@ -99,5 +99,6 @@ export async function createAnalysisWorkspace({
     audioPath,
     schemaPath,
     checkpointPath: path.join(root, "phase-a-observation.json"),
+    skillPath: path.join(skillDir, "SKILL.md"),
   });
 }
