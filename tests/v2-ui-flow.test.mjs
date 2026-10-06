@@ -10,7 +10,7 @@ const built = await build({
   define: { "import.meta.env": '{}', "process.env.NODE_ENV": '"production"' },
 });
 const song = { title: "测试歌曲", artist: "测试艺人", album: "Studio" };
-const candidate = { sourceId: "yt-1", title: "正确录音", channel: "Artist - Topic", url: "https://youtube.com/watch?v=test", durationSec: 120, matchScore: 0.94 };
+const candidate = { sourceId: "yt-1", title: "正确录音", channel: "Artist - Topic", url: "https://youtube.com/watch?v=yt-1", durationSec: 120, matchScore: 0.94 };
 const completed = {
   status: "complete", songId: "song-1", materialization: { reused: true, mediaRevisionId: "media-1", source: { ...candidate, decision: "manual_selected" }, identityWarning: null },
   cache: { audio: true, listen: true, research: true }, observation: { provider: { model: "qwen-test" }, globalProfile: { overallCharacter: "脉冲", styleTags: [], moodTags: [] },
@@ -66,7 +66,7 @@ test("v2 displays configuration gaps, actual source, cache hits, all core dimens
   const text = ui.document.body.textContent;
   assert.match(text, /DASHSCOPE_API_KEY：未就绪/);
   assert.equal(ui.document.querySelector('details.panel').open, true);
-  assert.equal(ui.document.querySelector('a[href="https://youtube.com/watch?v=test"]').textContent, "正确录音");
+  assert.equal(ui.document.querySelector('a[href="https://youtube.com/watch?v=yt-1"]').textContent, "正确录音");
   assert.match(text, /实测 2:00/); assert.match(text, /Listen 复用/); assert.match(text, /Research 复用/);
   for (const label of ["文化与背景", "和声", "律动", "音色", "资料不足", "已有解读"]) assert.ok(text.includes(label));
   for (const limit of ["拍号未确认", "和弦未确认", "录音年份未知", "作品而非特定录音", "实际读到的片段"]) assert.ok(text.includes(limit));
@@ -76,25 +76,33 @@ test("v2 displays configuration gaps, actual source, cache hits, all core dimens
   assert.deepEqual(ui.errors, []);
 });
 
-test("v2 confirmation shows an independent source link and reason before selecting a source", async (t) => {
+test("v2 previews YouTube candidates and waits for an explicit source choice before analysis", async (t) => {
   const ui = harness(t, async (_, __, count) => Response.json(count === 1 ? { status: "confirmation_required", candidates: [candidate], reason: "实测时长不符" } : completed));
-  await ui.start(); await until(() => ui.document.body.textContent.includes("打开音源核对"));
+  await ui.start(); await until(() => ui.document.body.textContent.includes("在 YouTube 打开"));
   assert.equal(hasHeading(ui.document, "选择歌曲"), false, "hide the long catalog result list while resolving audio");
   assert.match(ui.document.body.textContent, /实测时长不符/);
   assert.equal(ui.requests.length, 1);
-  assert.equal(ui.document.querySelector('a[href="https://youtube.com/watch?v=test"]').closest("button"), null);
-  [...ui.document.querySelectorAll("button")].find((entry) => entry.textContent.includes("正确录音")).click();
-  await until(() => ui.requests.length === 2); assert.equal(ui.requests[1].selectedSourceId, "yt-1");
+  assert.equal(ui.document.querySelector("iframe").getAttribute("src"), "https://www.youtube-nocookie.com/embed/yt-1?playsinline=1&rel=0");
+  assert.equal(ui.document.querySelector('a[href="https://youtube.com/watch?v=yt-1"]').closest("button"), null);
+  assert.equal(ui.button("下载所选音源并开始分析").disabled, true);
+  ui.button("选择此音源").click();
+  assert.equal(ui.requests.length, 1, "selecting a preview must not start downloading or analysis");
+  await until(() => !ui.button("下载所选音源并开始分析").disabled);
+  assert.equal(ui.button("下载所选音源并开始分析").disabled, false);
+  ui.button("下载所选音源并开始分析").click();
+  await until(() => ui.requests.length === 2);
+  assert.equal(ui.requests[1].selectedSourceId, "yt-1");
+  assert.equal(ui.requests[1].forceRematch, true);
 });
 
 test("empty YouTube match results are explicit and return to catalog candidates", async (t) => {
   const ui = harness(t, async () => Response.json({
     status: "confirmation_required", candidates: [],
-    reason: "YouTube 返回了搜索结果，但没有候选达到可信的歌曲标题匹配度。",
+    reason: "当前没有标题相似度足够高的候选。",
   }), { songs: [song, { ...song, id: "song-2", title: "另一个版本" }] });
   await ui.start();
-  await until(() => ui.document.body.textContent.includes("暂未找到可信音源"));
-  assert.match(ui.document.body.textContent, /没有候选达到可信的歌曲标题匹配度/);
+  await until(() => ui.document.body.textContent.includes("暂未找到合适的音源"));
+  assert.match(ui.document.body.textContent, /标题相似度足够高/);
   assert.equal(hasHeading(ui.document, "选择歌曲"), false);
   ui.button("返回歌曲结果，换一个版本").click();
   await until(() => hasHeading(ui.document, "选择歌曲"));

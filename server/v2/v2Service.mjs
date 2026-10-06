@@ -126,17 +126,46 @@ export function createV2Service({
         if (current.media.catalogIdentityKey === catalogIdentityKey &&
           Number.isFinite(current.media.durationSec) && current.media.durationSec > 0 &&
           await mediaFilesExist(current.media)) {
+          if (!selectedSourceId) {
+            const acquisition = current.media.acquisition;
+            const candidate = current.media.candidate || {
+              sourceId: acquisition.sourceId,
+              url: acquisition.sourceUrl,
+              title: acquisition.sourceTitle,
+              artistHint: null,
+              albumHint: null,
+              channel: acquisition.channel,
+              durationSec: acquisition.durationSec,
+              isOfficial: false,
+              isTopic: false,
+              isPublisher: false,
+              matchScore: acquisition.matchScore,
+              scoreParts: {
+                title: 0,
+                artist: 0,
+                duration: null,
+                albumVersion: null,
+                authority: 0,
+                variantPenalty: 0,
+              },
+            };
+            return {
+              status: "confirmation_required",
+              reused: false,
+              songId: pkg.song.songId,
+              song: pkg.song,
+              reason: current.media.identityWarning || "发现本机已缓存音源。请先试听并选定版本，再开始分析。",
+              candidates: [candidate],
+            };
+          }
           if (selectedSourceId && current.media.acquisition.requiresSanityCheck &&
             current.media.acquisition.sourceId === selectedSourceId) {
             current.media.acquisition.matchDecision = "manual_selected";
             current.media.acquisition.requiresSanityCheck = false;
             current.manifest = await library.commitMediaRevision(pkg.song.songId, current.media);
-          } else if (!selectedSourceId && current.media.acquisition.requiresSanityCheck) {
-            return { status: "confirmation_required", reused: false, songId: pkg.song.songId, song: pkg.song,
-              reason: current.media.identityWarning, candidates: [current.media.candidate] };
           }
           if (!current.media.acquisition.requiresSanityCheck &&
-            (!selectedSourceId || current.media.acquisition.sourceId === selectedSourceId)) {
+            current.media.acquisition.sourceId === selectedSourceId) {
             onProgress?.({
               stage: "acquiring_audio",
               label: "已找到本地歌曲音频，直接复用",
@@ -159,61 +188,42 @@ export function createV2Service({
       }
     }
 
-    const candidates = await youtube.search(pkg.song, { signal, onProgress });
-    if (!candidates.length) {
-      throw new AppError(
-        "没有找到可供确认的 YouTube 音源候选。",
-        "V2_AUDIO_SOURCE_NOT_FOUND",
-        404,
-      );
-    }
-
-    const match = youtube.choose(pkg.song, candidates);
-    let selected = forceRematch && !selectedSourceId ? null : match.selected;
-    let decision = forceRematch && !selectedSourceId ? "manual_required" : match.decision;
-    let requiresSanityCheck = match.requiresSanityCheck;
+    let candidates = [];
+    let selected = null;
+    let decision = "manual_required";
+    let requiresSanityCheck = false;
 
     if (selectedSourceId) {
-      selected = match.candidates.find(
-        (candidate) => candidate.sourceId === selectedSourceId,
-      ) || null;
-      if (!selected) {
-        throw new AppError(
-          "所选 YouTube 视频与歌曲名或艺人匹配度不足，请返回歌曲列表换一个版本。",
-          "V2_AUDIO_SOURCE_NOT_PLAUSIBLE",
-          422,
-        );
-      }
-      if (selected.matchScore == null) {
-        selected = youtube.choose(pkg.song, [selected]).candidates[0];
-      }
+      selected = await youtube.resolveSelected(pkg.song, selectedSourceId, { signal, onProgress });
       decision = "manual_selected";
       requiresSanityCheck = false;
-    }
-
-    if (!selected && !match.candidates.length) {
-      return {
-        status: "confirmation_required",
-        reused: false,
-        songId: pkg.song.songId,
-        song: pkg.song,
-        candidates: [],
-        reason:
-          "YouTube 返回了搜索结果，但没有候选达到可信的歌曲标题匹配度。艺人信息可能是别名；请返回歌曲列表，换一个目录版本后再试。",
-      };
+    } else {
+      candidates = await youtube.search(pkg.song, { signal, onProgress });
     }
 
     if (!selected) {
+      const titleMatches = candidates
+        .filter((candidate) => candidate.scoreParts.title >= 0.35)
+        .sort((left, right) =>
+          right.scoreParts.title - left.scoreParts.title ||
+          right.matchScore - left.matchScore,
+        );
+      const previewCandidates = titleMatches.slice(0, 5);
       onProgress?.({
         stage: "awaiting_source_confirmation",
-        label: "找到了多个可能版本，需要确认音源",
+        label: "音源预览已准备好，请选择一个版本",
       });
       return {
         status: "confirmation_required",
         reused: false,
         songId: pkg.song.songId,
         song: pkg.song,
-        candidates: match.candidates,
+        candidates: previewCandidates,
+        reason: previewCandidates.length
+          ? undefined
+          : candidates.length
+            ? "当前返回的候选与歌曲标题相似度太低，已隐藏这些结果。请返回歌曲列表，尝试另一个目录版本。"
+            : "没有找到可供试听的匹配音源。请返回歌曲列表，尝试另一个目录版本。",
       };
     }
 
@@ -247,7 +257,7 @@ export function createV2Service({
     if (durationMismatch) {
       media.identityWarning = "所选目录时长为 " + Math.round(pkg.song.durationSec) + " 秒，本地音源实测为 " +
         Math.round(acquired.durationSec) + " 秒，请确认这是要分析的版本。";
-      if (decision !== "manual_selected") media.acquisition.requiresSanityCheck = true;
+      media.acquisition.requiresSanityCheck = true;
     }
     const manifest = await library.commitMediaRevision(
       pkg.song.songId,

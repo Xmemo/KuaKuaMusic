@@ -228,20 +228,35 @@ test("parallel Listen and Research saves retain every manifest ID across library
   assert.equal((await a.loadResearch(pkg.song.songId, "research-29")).artifact.researchRunId, "research-29");
 });
 
-test("materialize reuses the same recording, but not a live version under the same song name", async (t) => {
+test("materialize requires preview selection and reuses the chosen recording, but not a live version", async (t) => {
   const root = await tempRoot(t), stub = audioRunner();
-  const service = createV2Service({ env: { MUSIC_LIBRARY_DIR: root }, runner: stub.runner });
-  const first = await service.materialize({ song });
+  let modelCalls = 0;
+  const service = createV2Service({ env: { ...env, MUSIC_LIBRARY_DIR: root }, runner: stub.runner,
+    fetcher: async () => { modelCalls++; throw new Error("unexpected model call before source selection"); } });
+  const preview = await service.analyze({ song });
+  assert.equal(preview.status, "confirmation_required");
+  assert.equal(preview.candidates[0].sourceId, "source-studio");
+  assert.equal(modelCalls, 0, "analysis must not call Listen or Research before preview selection");
+  assert.equal(stub.calls.some((item) => item.args.includes("--no-playlist")), false);
+  const first = await service.materialize({ song, selectedSourceId: preview.candidates[0].sourceId });
   assert.equal(first.status, "ready");
+  assert.equal(stub.calls.filter((item) => item.args.some((arg) => arg.startsWith("ytsearch10:"))).length, 2,
+    "confirming a preview should inspect that video directly instead of repeating keyword search");
   const calls = stub.calls.length;
-  const again = await service.materialize({ song });
+  const againPreview = await service.materialize({ song });
+  assert.equal(againPreview.status, "confirmation_required");
+  assert.equal(againPreview.candidates[0].sourceId, "source-studio");
+  assert.equal(stub.calls.length, calls);
+  const again = await service.materialize({ song, selectedSourceId: "source-studio" });
   assert.equal(again.reused, true); assert.equal(stub.calls.length, calls);
   const rematch = await service.materialize({ song, forceRematch: true });
   assert.equal(rematch.status, "confirmation_required");
   assert.equal(stub.calls.filter((item) => item.args.includes("--no-playlist")).length, 1);
   const live = { ...song, album: "Live", durationSec: 300, trackUrl: "https://catalog.invalid/live" };
   stub.setVersion({ id: "source-live", title: song.title, artist: song.artist, album: "Live", channel: "Artist - Topic", duration: 300 }, 300);
-  const next = await service.materialize({ song: live });
+  const livePreview = await service.materialize({ song: live });
+  assert.equal(livePreview.status, "confirmation_required");
+  const next = await service.materialize({ song: live, selectedSourceId: "source-live" });
   assert.equal(next.reused, false); assert.equal(next.media.durationSec, 300);
   assert.equal(next.songId, first.songId);
   assert.notEqual(next.media.mediaRevisionId, first.media.mediaRevisionId);
@@ -253,7 +268,10 @@ test("materialize reuses the same recording, but not a live version under the sa
 test("a duration mismatch pauses before Listen and manual confirmation reuses the pending download", async (t) => {
   const root = await tempRoot(t), stub = audioRunner(); stub.setVersion({ id: "source-studio", title: song.title, artist: song.artist, album: song.album, channel: "Artist - Topic", duration: 120 }, 180);
   const service = createV2Service({ env: { MUSIC_LIBRARY_DIR: root }, runner: stub.runner });
-  const pending = await service.materialize({ song });
+  const preview = await service.materialize({ song });
+  assert.equal(preview.status, "confirmation_required");
+  assert.equal(stub.calls.some((item) => item.args.includes("--no-playlist")), false);
+  const pending = await service.materialize({ song, selectedSourceId: preview.candidates[0].sourceId });
   assert.equal(pending.status, "confirmation_required"); assert.match(pending.reason, /180/);
   await assert.rejects(service.listen({ songId: pending.songId }), { code: "V2_AUDIO_SOURCE_CONFIRMATION_REQUIRED" });
   const calls = stub.calls.length;
@@ -274,7 +292,7 @@ test("materialize returns a clear empty match state for weak YouTube results wit
 
   assert.equal(result.status, "confirmation_required");
   assert.deepEqual(result.candidates, []);
-  assert.match(result.reason, /没有候选达到可信的歌曲标题匹配度/);
+  assert.match(result.reason, /标题相似度太低/);
   assert.equal(stub.calls.some(({ args }) => args.includes("--no-playlist")), false);
 });
 
@@ -427,13 +445,16 @@ test("cached primary passes still produce independent, traceable Critic and Stud
         experiment: { question: "密度如何改变推进感", variable: "rhythmic_density", baseline: "稀疏", changed: "密集", constants: ["tempo"], listenFor: ["密度"], limitation: "learning reconstruction" } });
       throw new Error("Unexpected provider request");
     } });
-  const media = await service.materialize({ song }), library = createSongLibrary({ root });
+  const preview = await service.materialize({ song });
+  const media = await service.materialize({ song, selectedSourceId: preview.candidates[0].sourceId });
+  const library = createSongLibrary({ root });
   const doc = { ...observation(), songId: media.songId, mediaRevisionId: media.media.mediaRevisionId,
     provider: { name: "dashscope", model: "qwen3.8-omni-flash", promptVersion: DASHSCOPE_LISTEN_PROMPT_VERSION } };
   const research = { schemaVersion: "2.0", researchRunId: "research-1", songId: media.songId, createdAt: new Date().toISOString(), provider: { name: "dashscope", model: "qwen3.8-omni-flash" }, backend: "registered-web",
     guidedByObservationIds: [], sourceIds: [], summary: "没有足够外部资料", findings: [], unknowns: ["文化背景待检索"] };
   await Promise.all([library.saveObservation(media.songId, doc), library.saveResearch(media.songId, research, [], { catalogIdentityKey: deriveCatalogIdentityKey(media.song), promptVersion: RESEARCH_PROMPT_VERSION })]);
-  const first = await service.analyze({ song }), second = await service.analyze({ song });
+  const first = await service.analyze({ song, selectedSourceId: "source-studio" });
+  const second = await service.analyze({ song, selectedSourceId: "source-studio" });
   assert.equal(first.status, "complete"); assert.equal(second.status, "complete");
   assert.deepEqual(second.cache, { audio: true, listen: true, research: true });
   assert.equal(second.materialization.source.sourceId, "source-studio");

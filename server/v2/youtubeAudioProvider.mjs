@@ -11,11 +11,10 @@ function buildQueries(song) {
   const artist = String(song.artist || "").replace(/"/gu, "").trim();
   const album = String(song.album || "").replace(/"/gu, "").trim();
   const values = album
-    ? [[title, album].filter(Boolean).join(" "), title, [title, artist].filter(Boolean).join(" ")]
+    ? [[title, album].filter(Boolean).join(" "), [title, artist].filter(Boolean).join(" ")]
     : [
         title,
         [title, artist].filter(Boolean).join(" "),
-        [title, artist, "official audio"].filter(Boolean).join(" "),
       ];
   return [...new Set(values)].slice(0, 3);
 }
@@ -77,8 +76,7 @@ export function createYouTubeAudioProvider({
     for (const query of buildQueries(song)) {
       onProgress?.({
         stage: "resolving_audio",
-        label: "正在 YouTube 查找匹配音源",
-        query,
+        label: "正在准备音源预览",
       });
       const result = await runner(
         ytDlp,
@@ -101,12 +99,32 @@ export function createYouTubeAudioProvider({
           found.set(candidate.sourceId, candidate);
         }
       }
-      if (chooseAudioSource(song, [...found.values()]).decision === "auto_high") break;
     }
     return [...found.values()]
       .map((candidate) => scoreAudioCandidate(song, candidate))
       .sort((a, b) => b.matchScore - a.matchScore)
       .slice(0, 10);
+  }
+
+  async function resolveSelected(song, sourceId, { signal, onProgress } = {}) {
+    const id = String(sourceId || "").trim();
+    if (!/^[A-Za-z0-9_-]{3,64}$/u.test(id)) {
+      throw new AppError("所选音源 ID 无效，请重新选择预览。", "V2_AUDIO_SOURCE_STALE", 409);
+    }
+    const url = "https://www.youtube.com/watch?v=" + encodeURIComponent(id);
+    onProgress?.({ stage: "resolving_audio", label: "正在校验所选音源" });
+    const result = await runner(
+      ytDlp,
+      ["--dump-single-json", "--skip-download", "--no-warnings", url],
+      { signal, timeoutMs: 120000, maxOutputBytes: 8 * 1024 * 1024 },
+    );
+    const payload = JSON.parse(result.stdout || "{}");
+    const entry = payload.entries?.[0] || payload;
+    const candidate = mapEntry(entry, song);
+    if (!candidate || candidate.sourceId !== id) {
+      throw new AppError("所选预览已无法读取，请重新搜索并选择音源。", "V2_AUDIO_SOURCE_STALE", 409);
+    }
+    return scoreAudioCandidate(song, candidate);
   }
 
   function choose(song, candidates) {
@@ -210,7 +228,7 @@ export function createYouTubeAudioProvider({
     };
   }
 
-  return Object.freeze({ search, choose, acquire, buildQueries });
+  return Object.freeze({ search, resolveSelected, choose, acquire, buildQueries });
 }
 
 export { buildQueries as buildYouTubeQueries };

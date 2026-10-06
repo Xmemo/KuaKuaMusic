@@ -6,7 +6,6 @@ import {
   getV2Health,
   type V2Health,
   type V2AnalyzeResponse,
-  type V2Progress,
 } from "./services/musicLearningV2Service";
 import type { SongMetadata } from "./types";
 import { SourcesPanel } from "./components/EvidencePanel";
@@ -33,10 +32,10 @@ export default function V2App() {
   const [showMatches, setShowMatches] = useState(false);
   const [visibleMatches, setVisibleMatches] = useState(60);
   const [selected, setSelected] = useState<SongMetadata | null>(null);
+  const [chosenSourceId, setChosenSourceId] = useState<string | null>(null);
   const [result, setResult] = useState<V2AnalyzeResponse | null>(null);
   const [mode, setMode] = useState<keyof typeof modeLabels>("emo");
   const [busy, setBusy] = useState("");
-  const [progress, setProgress] = useState<V2Progress | null>(null);
   const [error, setError] = useState("");
   const [health, setHealth] = useState<V2Health | null>(null);
   const [healthError, setHealthError] = useState("");
@@ -64,6 +63,7 @@ export default function V2App() {
     setError("");
     setResult(null);
     setSelected(null);
+    setChosenSourceId(null);
     try {
       setMatches(await searchSongs(query, controller.current.signal));
       setVisibleMatches(60);
@@ -79,9 +79,9 @@ export default function V2App() {
     controller.current?.abort();
     controller.current = new AbortController();
     setSelected(song);
+    if (!selectedSourceId) setChosenSourceId(null);
     setShowMatches(false);
-    setBusy("正在准备本地歌曲");
-    setProgress(null);
+    setBusy(selectedSourceId ? "正在下载所选音源并开始分析" : "正在准备音源预览");
     setError("");
     setResult(null);
     try {
@@ -93,7 +93,6 @@ export default function V2App() {
         },
         controller.current.signal,
         (next) => {
-          setProgress(next);
           setBusy(next.label);
         },
       );
@@ -104,7 +103,6 @@ export default function V2App() {
         setError((cause as Error).message);
     } finally {
       setBusy("");
-      setProgress(null);
     }
   }
 
@@ -126,7 +124,7 @@ export default function V2App() {
           <p className="eyebrow">先听这首歌，再查资料，再解释</p>
           <h1>这次，真的从音乐本身开始。</h1>
           <p className="muted">
-            选择歌曲后，本机先匹配并缓存音频；Listen 与 Research 独立进行，最后才由 Critic 综合。
+            选择歌曲后先试听音源；只有确认后才会下载并开始分析。Listen 与 Research 独立进行，最后由 Critic 综合。
           </p>
         </section>
 
@@ -158,7 +156,6 @@ export default function V2App() {
         {busy ? (
           <div className="busy" role="status">
             <span>
-              {progress ? <small>{progress.stage}</small> : null}
               <strong>{busy}</strong>
             </span>
             <button onClick={() => controller.current?.abort()}>取消</button>
@@ -198,33 +195,52 @@ export default function V2App() {
 
         {result?.status === "confirmation_required" && selected ? (
           <section className="panel">
-            <p className="eyebrow">需要确认音源</p>
-            <h2>{result.candidates.length ? "YouTube 找到几个可能版本" : "暂未找到可信音源"}</h2>
+            <p className="eyebrow">音源预览</p>
+            <h2>{result.candidates.length ? "试听并选择这个版本" : "暂未找到合适的音源"}</h2>
             <p className="muted">
               {result.candidates.length
-                ? "请先打开候选音源核对版本，再选择要分析的录音。"
-                : "YouTube 搜索已经结束，但候选结果与当前歌曲资料不够吻合，暂时不能安全选择。"}
+                ? "先播放预览并选定正确版本。此步骤不会下载音频或调用分析模型。"
+                : "当前没有可供试听的匹配版本。你可以返回歌曲结果，换一个歌曲条目再试。"}
             </p>
             {result.reason ? <p className="notice">{result.reason}</p> : null}
-            {result.candidates.length ? <div className="song-grid">
+            {result.candidates.length ? <div className="source-preview-grid">
               {result.candidates.map((candidate) => (
-                <div key={candidate.sourceId}>
-                <button
-                  className="song-choice"
-                  disabled={!!busy}
-                  onClick={() => run(selected, candidate.sourceId)}
-                >
-                  <strong>{candidate.title}</strong>
-                  <span>{candidate.channel}</span>
-                  <small>
-                    匹配 {Math.round(candidate.matchScore * 100)}%
-                    {candidate.durationSec ? " · " + formatTime(candidate.durationSec) : ""}
-                  </small>
-                </button>
-                <a href={candidate.url} target="_blank" rel="noreferrer">打开音源核对</a>
-                </div>
+                <article className={"source-preview-card" + (chosenSourceId === candidate.sourceId ? " is-selected" : "")} key={candidate.sourceId}>
+                  <div className="source-preview-frame">
+                    <iframe
+                      src={`https://www.youtube-nocookie.com/embed/${encodeURIComponent(candidate.sourceId)}?playsinline=1&rel=0`}
+                      title={`试听：${candidate.title}`}
+                      loading="lazy"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                      referrerPolicy="strict-origin-when-cross-origin"
+                      allowFullScreen
+                    />
+                  </div>
+                  <div className="source-preview-copy">
+                    <h3>{candidate.title}</h3>
+                    <p className="muted">{candidate.channel}</p>
+                    <p className="muted">{candidate.durationSec ? formatTime(candidate.durationSec) : "时长未知"} · 匹配参考 {Math.round(candidate.matchScore * 100)}%</p>
+                    <button
+                      aria-pressed={chosenSourceId === candidate.sourceId}
+                      className={chosenSourceId === candidate.sourceId ? "source-selected-button" : ""}
+                      disabled={!!busy}
+                      onClick={() => setChosenSourceId(candidate.sourceId)}
+                    >
+                      {chosenSourceId === candidate.sourceId ? "已选中此音源" : "选择此音源"}
+                    </button>
+                    <a href={candidate.url} target="_blank" rel="noreferrer">在 YouTube 打开</a>
+                  </div>
+                </article>
               ))}
             </div> : null}
+            {result.candidates.length ? (
+              <div className="source-preview-actions">
+                <p className="muted">只有点击下方按钮后，才会下载所选音频并调用本机配置的分析模型。</p>
+                <button className="primary" disabled={!chosenSourceId || !!busy} onClick={() => run(selected, chosenSourceId, true)}>
+                  下载所选音源并开始分析
+                </button>
+              </div>
+            ) : null}
             {!result.candidates.length && matches.length ? (
               <button onClick={() => { setResult(null); setSelected(null); setShowMatches(true); }}>
                 返回歌曲结果，换一个版本

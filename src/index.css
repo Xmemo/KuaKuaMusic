@@ -123,6 +123,18 @@ body {
 .music-app .overview-hook { color: #f0c6de; font-size: 16px; line-height: 1.8; }
 .music-app .song-choice { display: flex; flex-direction: column; text-align: left; gap: 6px; }
 .music-app .song-choice span, .music-app .song-choice small { color: #c8bed8; }
+.music-app .source-preview-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 18px; margin-top: 18px; }
+.music-app .source-preview-card { min-width: 0; overflow: hidden; border: 1px solid #473b58; border-radius: 14px; background: #15111f; }
+.music-app .source-preview-card.is-selected { border-color: #ef91c1; box-shadow: 0 0 0 2px rgba(239,145,193,.2); }
+.music-app .source-preview-frame { aspect-ratio: 16 / 9; background: #08070d; }
+.music-app .source-preview-frame iframe { display: block; width: 100%; height: 100%; border: 0; }
+.music-app .source-preview-copy { padding: 16px; }
+.music-app .source-preview-copy h3 { margin: 0 0 4px; overflow-wrap: anywhere; }
+.music-app .source-preview-copy p { margin: 6px 0; }
+.music-app .source-preview-copy button { margin: 12px 12px 0 0; }
+.music-app .source-preview-copy .source-selected-button { border-color: #ef91c1; background: #ef91c1; color: #211125; }
+.music-app .source-preview-actions { border-top: 1px solid #473b58; margin-top: 22px; padding-top: 14px; }
+.music-app .source-preview-actions .primary { min-height: 48px; }
 .music-app .claim { margin: 18px 0; }
 .music-app .claim p { margin: 8px 0; }
 .music-app details { margin: 14px 0; }
@@ -161,6 +173,7 @@ body {
   .music-app header > .tag { display: none; }
   .music-app .panel { padding: 18px; }
   .music-app .module-grid, .music-app .core-grid, .music-app .song-grid, .music-app .experiment-grid, .music-app .diff-grid { grid-template-columns: 1fr; }
+  .music-app .source-preview-grid { grid-template-columns: 1fr; }
   .music-app .input-row { flex-wrap: wrap; }
   .music-app .input-row input { flex-basis: 100%; }
   .music-app .section-top { align-items: flex-start; flex-wrap: wrap; }
