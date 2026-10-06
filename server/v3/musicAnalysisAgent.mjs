@@ -108,12 +108,15 @@ export function createMusicAnalysisAgent({
       );
     }
 
-    const checkpointExists = await fs
+    const fileCheckpoint = await fs
       .access(workspace.checkpointPath)
       .then(() => true)
       .catch(() => false);
+    const checkpointCompleted =
+      fileCheckpoint ||
+      run.protocolChecks?.listenCheckpointCompleted === true;
 
-    if (!checkpointExists) {
+    if (!checkpointCompleted) {
       throw new AppError(
         "音乐分析 Agent 没有留下独立 Listen checkpoint；为避免研究结果污染听感，本轮结果不接受。",
         "V3_LISTEN_CHECKPOINT_MISSING",
@@ -147,7 +150,7 @@ export function createMusicAnalysisAgent({
           totalTokens: nullableToken(run.usage?.total_tokens),
         },
         protocolChecks: {
-          listenCheckpointExists: true,
+          listenCheckpointCompleted: true,
           noMcpDependency: true,
         },
       },
