@@ -92,17 +92,17 @@ test("unrelated videos with an artist-name substring are not presented as source
   assert.deepEqual(result.candidates, []);
 });
 
-test("an exact-title Topic upload remains a manual option when catalog artist metadata is unreliable", () => {
+test("an exact-title recording remains a manual option when catalog artist metadata is unreliable", () => {
   const result = chooseAudioSource(
     { title: "Antagonistic", artist: "Varlan", album: "Pacific Dreams 88.9", durationSec: 178 },
     [{
       sourceId: "topic-title-match",
       title: "Antagonistic",
       artistHint: null,
-      channel: "Release - Topic",
-      durationSec: 205,
+      channel: "Lakeshore Records",
+      durationSec: 195,
       isOfficial: false,
-      isTopic: true,
+      isTopic: false,
       isPublisher: false,
     }],
   );

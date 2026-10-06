@@ -132,13 +132,12 @@ export function chooseAudioSource(song, candidates) {
       candidate.scoreParts.title >= 0.35 &&
       candidate.scoreParts.artist >= 0.35;
     // Catalog artist credits can be aliases or deliberately obfuscated. Keep
-    // an exact-title Topic/publisher upload as a manual-only possibility when
-    // artist metadata is absent; it can never become auto_high on title alone.
-    const strongTitleFromMusicChannel =
+    // a strong title match as a manual-only possibility when artist metadata
+    // differs; it can never become auto_high on title alone.
+    const strongTitleManualCandidate =
       candidate.scoreParts.title >= 0.9 &&
-      candidate.matchScore >= 0.45 &&
-      (candidate.isTopic || candidate.isOfficial || candidate.isPublisher);
-    return titleAndArtistAgree || strongTitleFromMusicChannel;
+      candidate.matchScore >= 0.45;
+    return titleAndArtistAgree || strongTitleManualCandidate;
   });
   const best = plausible[0] || null;
   const second = plausible[1] || null;
