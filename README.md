@@ -1,116 +1,237 @@
 # 夸夸音乐 / MusicLearning2026
 
-**输入歌曲 → 有依据的结构化分析 → 选择一个分析点深入了解 → Strudel Studio 实验。**
+**输入歌曲 → 本地录音实体化 → AI 真正听歌/按需测量/查资料 → 有依据的解释 → Strudel 学习实验。**
 
-产品基线仍是 [PRD v0.3 冻结版](docs/MUSICLEARNING2026_PRD_V0.3_FROZEN.md)。**目标架构已升级为 [Audio-first v2.0](docs/TECHNICAL_ARCHITECTURE_V2.md)**：歌曲将先实体化为本地 Song Package，由可替换的 Audio Provider 独立 Listen，再独立 Research，最后 Critic 综合并生成可映射到 Strudel 的 Creative Blueprint。
+产品基线仍是 [PRD v0.3 冻结版](docs/MUSICLEARNING2026_PRD_V0.3_FROZEN.md)。
 
-> 迁移状态：v2.0 后端主链已经实现到 **YouTube Materialize → Local Song Package → Qwen Listen → independent Research → Critic → Creative Blueprint → validated Strudel A/B Seed**，并保留缓存与单边失败降级。当前默认 `/api/agent/analyze` 仍运行 v1.2；在真实 Mac + DashScope + yt-dlp/ffmpeg 完成一首歌曲端到端验收前，不切默认前端。v1.2 文档见 [技术架构 v1.2](docs/TECHNICAL_ARCHITECTURE_V1.2.md)。
+当前新的目标架构是：
 
-## v2.0 目标流水线
+> **[v3 Single Agent + Generic Music Analysis Skill](docs/TECHNICAL_ARCHITECTURE_V3.md)**
+
+v3 从 PR #4 / v2 的稳定成果上继续收敛：保留歌曲搜索、YouTube 预览、本地 Song Package、media revision、缓存和 Strudel 安全层；不再把音乐理解拆成 Listen / Research / Critic / Creative 四个模型 Provider。
+
+## v3 核心流水线
 
 ```
-Search → Materialize → Listen → Research → Critic → Deep Dive
-                                              ↓
-                                      Creative Blueprint
-                                              ↓
-                                      Strudel Experiment
+Search
+  ↓
+Recording Materializer
+  ↓
+Local Song Package
+  ↓
+MusicAnalysisAgent
+  ├─ Generic music-analysis Skill
+  ├─ Listen first
+  ├─ Measure when useful
+  ├─ Research after checkpoint
+  └─ Synthesize
+  ↓
+Unified Analysis Artifact
+  ├─ observation
+  ├─ measurement
+  ├─ externalEvidence
+  └─ interpretation
+  ↓
+optional Creative Experiment
+  ↓
+server-validated Strudel A/B
 ```
 
-v2 不把 Qwen、SiliconFlow 或 Codex 写死进业务层。Listen / Research / Critic / Creative 四个角色分别配置 Provider；默认先用 DashScope `qwen3.5-omni-plus`，Research 默认继续使用可登记 URL / excerpt / hash 的 `registered-web`。后续可以只改配置，把部分角色切到 SiliconFlow、Codex CLI 或未来本地模型。
+第一版 Runner 是 **Antigravity CLI**，默认模型配置为 `gemini-3.8-flash-high`。这只是当前实现，不属于 Skill 或 Artifact 的固定假设。
 
-## 本机运行
+## 通用 Music Analysis Skill
 
-当前 v1.2 运行需要 **Node.js 22+**，以及已经安装并登录的 Codex CLI。
+Canonical Skill：
+
+```
+.agents/skills/music-analysis/SKILL.md
+```
+
+它只定义音乐分析方法论，不出现：
+
+- Gemini / Antigravity
+- Qwen / DashScope / SiliconFlow
+- KuaKuaMusic UI
+- Strudel
+
+因此未来替换为其他支持音频、工具和搜索的多模态 Agent 时，Skill 无需重写。
+
+核心规则：
+
+- **先听后搜**；
+- 精确数值必须来自真正执行的 measurement；
+- DSP/算法结果仍然是 estimator，不允许写成“100% 真相”；
+- 搜索 snippet 不算证据；
+- observation / measurement / external_evidence / interpretation 分开；
+- 不依赖 MCP；
+- 不强制每首歌跑固定 DSP checklist。
+
+## v3 Runner Boundary
+
+业务层只依赖一个很薄的 Runner 接口。
+
+当前：
+
+```
+MUSIC_ANALYSIS_RUNNER=antigravity-cli
+MUSIC_ANALYSIS_MODEL=gemini-3.8-flash-high
+MUSIC_ANALYSIS_EFFORT=high
+```
+
+Antigravity 专用逻辑只在：
+
+```
+server/v3/antigravityRunner.mjs
+```
+
+负责：
+
+- workspace Skill 映射；
+- headless CLI；
+- structured output；
+- stream-json/tool telemetry；
+- sandbox / permissions；
+- usage / conversation metadata。
+
+未来添加第二个 Runner 不需要修改 Skill、v3 Schema 或 Song Package。
+
+## 本地 Song Package
+
+v3 继续复用 v2 已验证的录音准备层：
+
+```
+.music-learning/library/<song-id>/
+├── identity.json
+├── media/
+│   └── <media-revision-id>/
+│       ├── acquisition.json
+│       ├── source.*
+│       └── analysis.mp3
+└── agent-runs/
+    └── <analysis-id>/
+        ├── input/audio.mp3
+        ├── skill/SKILL.md
+        ├── work/
+        ├── measurements/
+        ├── task.json
+        ├── output.schema.json
+        ├── phase-a-observation.json
+        └── analysis.json
+```
+
+录音和分析工作区均不提交 Git。
+
+## v3 本机运行
+
+需要：
+
+- Node.js 22+
+- `yt-dlp`
+- `ffmpeg`
+- `ffprobe`
+- 当前选择的 Agent Runner
+
+第一版 Runner：
+
+```bash
+agy --version
+agy models
+```
+
+并确保 Antigravity CLI 已完成本机登录。
+
+启用：
+
+```bash
+MUSIC_V3_ENABLED=1
+VITE_MUSIC_V3_ENABLED=1
+
+MUSIC_ANALYSIS_RUNNER=antigravity-cli
+MUSIC_ANALYSIS_CLI_BIN=agy
+MUSIC_ANALYSIS_MODEL=gemini-3.8-flash-high
+MUSIC_ANALYSIS_EFFORT=high
+```
+
+然后：
 
 ```bash
 npm ci
-cp .env.example .env.local
-codex --version
-codex login status
 npm run dev
 ```
 
-打开 `http://127.0.0.1:3000`。前端和 API 仅绑定本机回环地址。
-
-v2 Provider 配置已加入 `.env.example`，但 `MUSIC_V2_ENABLED=0` 默认关闭。打开后会新增 `/api/agent/v2/*` 路由；其中 `POST /api/agent/v2/analyze` 是一键入口。真实 Song Package E2E 完成前，不会替换可工作的 v1.2 默认路由。
-
-## 当前 v1.2 可用范围
-
-- 支持歌曲搜索、网易云 / QQ / Apple / Spotify / YouTube 链接解析。
-- 网页来源读取会登记 URL、正文片段、哈希和检索时间。
-- 每次分析得到独立 `analysisId`；Deep Dive 追加历史；Studio 保存修订。
-- Studio 支持 A/B 预览、手动编辑、AI 建议、撤销/重做、保存、恢复和 Strudel 播放。
-- 当前默认分析仍是 evidence-first 且没有音频输入；这条限制只描述现行 v1.2 runtime，不描述 v2 目标。
-
-## v2 新增的核心合同
-
-代码位于 `music-learning/v2/`：
-
-- `types.ts`：Song Package、MusicObservationDocument、Research/Critic Artifact、Provider Plan、Creative Blueprint、Studio Seed。
-- `providerRegistry.mjs`：角色化 Provider 与 capability 校验。
-- `sourceMatcher.mjs`：音源候选评分和自动/人工选择阈值。
-- `contracts.mjs`：v2 Song Package / Observation / Research / Critic / Creative / Studio Seed JSON Schema 来源。
-
-v2 schemas 会和现有 schemas 一起通过：
-
-```bash
-npm run schemas:generate
-```
-
-生成。
-
-## Provider 角色
-
-默认配置：
+打开：
 
 ```
-Listen    = dashscope / qwen3.5-omni-plus
-Research  = dashscope / qwen3.5-omni-plus + registered-web
-Critic    = dashscope / qwen3.5-omni-plus
-Creative  = dashscope / qwen3.5-omni-plus
+http://127.0.0.1:3000
 ```
 
-可以独立切换，例如未来：
+页面应显示 **Single-Agent v3 Beta**。
 
-```
-Listen    = siliconflow / Qwen Omni
-Research  = codex-cli / GPT + registered-web
-Critic    = codex-cli / GPT
-Creative  = cheaper structured-text model
-```
+## v3 本机 API
 
-Codex CLI 目前在 v2 registry 中声明为 text/research provider，不声明 audio capability，因此不会误被选作 Listen。Critic/Creative 使用 Codex CLI 时，会真正采用各角色配置的 model，并关闭 Web/MCP research tools，只读取已保存 Artifact。
+设置 `MUSIC_V3_ENABLED=1` 后：
 
-## 保存与验证
+| 接口 | 用途 |
+| --- | --- |
+| `POST /api/agent/v3/analyze` | 录音确认/复用 → 单 Agent 完整音乐调查 → Artifact → optional Studio |
+| `POST /api/agent/v3/materialize` | 只准备或确认本地录音 |
+| `GET /api/agent/v3/runner` | 查看当前架构/Skill 标识 |
 
-v1.2 默认记录仍在 `.music-learning/evidence/`。v2 Song Package 目标目录为 `.music-learning/library/`，两者均不提交 Git。
+默认 v1/v2 路由仍然保留。
+
+## Server-side Validation
+
+大模型负责调查与解释，但不是最后的真相裁判。
+
+服务端继续检查：
+
+- Schema；
+- observation / measurement / evidence / interpretation ID 引用；
+- 时间范围是否超出真实录音；
+- measurement artifactPath 是否真实存在且没有越过工作区；
+- external evidence URL；
+- Listen checkpoint 是否存在；
+- 是否意外使用 MCP；
+- Strudel 代码安全；
+- A/B 是否只有格式差异。
+
+## v1 / v2 状态
+
+### v1.2
+
+仍保留现有 evidence-first 默认路径与历史数据。
+
+### v2
+
+[TECHNICAL_ARCHITECTURE_V2.md](docs/TECHNICAL_ARCHITECTURE_V2.md) 继续保留，作为：
+
+- Audio-first 多 Provider 架构实验；
+- Song Package / YouTube / Qwen Omni / Research / Critic / Creative 的工程验证；
+- v3 的重要前置探索。
+
+v3 真实音乐质量通过验收前，不删除 v2 代码。
+
+## 验证
 
 ```bash
 npm run schemas:generate
 npm run verify
 ```
 
-新增回归覆盖 v2 source matcher、provider switching、Song Package revision/cache、Critic/Creative provenance 与 Strudel Seed runtime policy。自动测试不能代替真实音频的本机验收。
+CI 会额外检查 generated schema 是否和 contracts 漂移。
 
-## 兼容与部署
+代码回归只能证明协议和边界；不能证明一个模型真的“懂音乐”。v3 最终 Gate 是用真实录音进行内容质量 benchmark。
 
-歌曲搜索仍由 `/api/music/search` 提供。旧 UI 和 Agnes 本机 API 默认关闭；确有兼容需求时分别设置 `VITE_ENABLE_LEGACY_UI=1`、`MUSIC_LEARNING_ENABLE_LEGACY=1`。
+首轮建议：
 
-v2 的 Local Song Package 代表音频与 artifact 缓存在本机；如果 Listen Provider 选择 DashScope 或 SiliconFlow，音频仍会发送到对应云端模型。完全本地化将通过替换 AudioUnderstandingProvider 实现，不改变上层 pipeline。
+- **VARLAN — Antagonistic**
+- **Battlefield 4 — Warsaw Theme**
 
+重点比较：
 
-## v2 本机 API（feature flag）
-
-设置 `MUSIC_V2_ENABLED=1` 后，沿用现有本机 session token 与 loopback 安全边界：
-
-| 接口 | 用途 |
-| --- | --- |
-| `POST /api/agent/v2/analyze` | 一键执行 Materialize → Listen + Research → Critic → Creative → Studio Seed；低置信音源时返回待确认候选 |
-| `POST /api/agent/v2/materialize` | 单独建立/复用本地 Song Package 音频 |
-| `POST /api/agent/v2/listen` | 单独执行或复用 Listen Artifact |
-| `POST /api/agent/v2/research` | 单独执行或复用 independent Research Artifact |
-| `POST /api/agent/v2/critic` | 用已保存 Listen/Research 生成 Critic Analysis |
-| `POST /api/agent/v2/creative` | Critic → Creative Blueprint → validated Strudel Seed |
-| `GET /api/agent/v2/provider-plan` | 查看当前四个角色实际使用的 provider/model/capabilities |
-
-同一 media revision + 同一 Listen provider/model/promptVersion 默认复用 Observation。Independent Research 默认缓存 168 小时，可用 `MUSIC_RESEARCH_CACHE_TTL_HOURS=0` 关闭。Listen 或 Research 任一失败时，一键 pipeline 会用另一边继续 Critic；两边都失败才终止。Creative 需要 Audio Observation，因此 Research-only 降级时不会伪造 Studio。
+- 秒级 observation；
+- Agent 是否只在值得的时候跑 DSP；
+- measurement 是否真正有计算依据；
+- external research 是否足够扎实；
+- 最终解释是否比 v2 更自然、更有音乐洞察；
+- Creative Experiment 是否真的对应前面的机制。
