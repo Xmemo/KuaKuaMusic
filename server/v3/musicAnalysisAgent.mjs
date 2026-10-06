@@ -55,6 +55,10 @@ function productPrompt(song, media) {
   ].join("\n");
 }
 
+function isMcpTool(name) {
+  return /(^|[_:/.-])mcp([_:/.-]|$)/iu.test(String(name || ""));
+}
+
 function nullableToken(value) {
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
@@ -94,6 +98,15 @@ export function createMusicAnalysisAgent({
       signal,
       onProgress,
     });
+
+    const mcpTools = (run.toolsUsed || []).filter(isMcpTool);
+    if (mcpTools.length) {
+      throw new AppError(
+        "本轮音乐分析依赖了 MCP 工具：" + mcpTools.join(", "),
+        "V3_MCP_DEPENDENCY_FORBIDDEN",
+        422,
+      );
+    }
 
     const checkpointExists = await fs
       .access(workspace.checkpointPath)
