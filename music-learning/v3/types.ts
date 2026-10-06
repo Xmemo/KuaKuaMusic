@@ -125,7 +125,7 @@ export interface V3AnalysisArtifact extends V3AnalysisDraft {
       totalTokens: number | null;
     };
     protocolChecks: {
-      listenCheckpointExists: boolean;
+      listenCheckpointCompleted: boolean;
       noMcpDependency: boolean;
     };
   };
