@@ -5,7 +5,7 @@ import { createStructuredTextProvider } from "./textProvider.mjs";
 import { createRegisteredWebResearchBackend } from "./registeredWebResearch.mjs";
 
 const serialize = (value) => JSON.stringify(value, null, 2);
-export const RESEARCH_PROMPT_VERSION = "research-v2.0.1";
+export const RESEARCH_PROMPT_VERSION = "research-v2.0.2";
 
 function evidenceIndex(sources) {
   return new Map(
@@ -44,7 +44,7 @@ export function createResearchPass({
 } = {}) {
   const provider = createStructuredTextProvider(selection, { env, fetcher });
   const registered =
-    discovery || createRegisteredWebResearchBackend();
+    discovery || createRegisteredWebResearchBackend({ selection, env, fetcher });
 
   async function run(
     song,

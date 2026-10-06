@@ -20,13 +20,11 @@ export function createV2Preflight({ env, plan, runner, agentHealth }) {
           status: env[name]?.trim() ? "ready" : "missing",
           message: env[name]?.trim() ? "已配置；有效性将在模型调用时检查。" : "请在本机 .env.local 配置，密钥不要发送到聊天或提交到 Git。" });
       }
-      if (["registered-web", "codex-web"].includes(plan.research.backend) ||
+      if (plan.research.backend === "codex-web" ||
         Object.values(plan).some((role) => role.provider === "codex-cli")) {
         const health = await agentHealth({ refresh }).catch(() => ({}));
         checks.push({ id: "codex", label: "Codex CLI 与登录", status: health.codexAvailable && health.authentication === "ready" &&
-          health.projectConfiguration === "explicit" ? "ready" : "missing", message: "registered-web 的来源检索需要本机 Codex CLI、登录及支持的 exec 参数。" });
-        checks.push({ id: "musicbrainz", label: "MusicBrainz MCP", status: health.musicBrainz === "ready" ? "ready" : "missing",
-          message: "用于核对作品、创作者与录音身份；首次网页检索仍需网络访问。" });
+          health.projectConfiguration === "explicit" ? "ready" : "missing", message: "当前配置选择了 Codex Provider，因此需要本机 Codex CLI 与登录。" });
       }
       const value = { ok: checks.every((item) => item.status === "ready"), checks };
       cached = { at: Date.now(), value };

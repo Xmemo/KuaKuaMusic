@@ -143,9 +143,9 @@ Channel authority 优先：官方艺人频道、Topic、发行商/厂牌、游�
 - Listen 按 media revision、provider、model、promptVersion 复用；Research 另校验目录身份摘要、promptVersion 和 TTL，旧缺少这些字段的缓存重新生成。
 - Listen/Research 同时保存时，manifest 的读取、修改、写入在本机单个 API 进程中串行化；原子替换仅保证单文件落盘。当前不支持多个 API 进程同时写同一 library。
 - Listen 的 sections、observations、notableMoments 检查范围、重复 ID 和引用；显著时刻必须由局部观察覆盖。Critic 精确时间线索必须位于实测音频时长内，但不要求必须由 time_localized Audio Observation 覆盖；可结合听辨、段落时间、资料和解释来提供线索，相关引用在可用时保留。
-- DashScope 文本和音频请求使用 SSE；JSON Object 模式仍发送完整合同形状并在本机校验。格式失败最多补一次；Listen 与 Critic 另外对语义验证失败补一次。鉴权、网络和取消不作为格式修复重试。
-- 页面预检包括 yt-dlp、ffmpeg、ffprobe、所选 Provider 的密钥是否配置，以及 registered-web 需要的 Codex CLI/登录/MusicBrainz。预检不调用付费模型。
-- 当前本机默认的 Listen、Research synthesis、Critic 和 Creative 使用 DashScope `qwen3.8-omni-flash`；`registered-web` 的网页资料发现仍由 Codex CLI 执行，随后才交给 DashScope Qwen 整理。因此整条分析链路并非只调用阿里模型。未设置 `CODEX_MODEL` / `CODEX_REASONING_EFFORT` 时，Codex 资料发现默认使用 `gpt-6-luna` / `xhigh`。
+- DashScope 文本和音频请求使用 SSE；普通结构化文本调用 JSON Object 模式并在本机校验。Qwen 搜索 agent 不支持和联网搜索同时使用 JSON response format，因此 Research discovery 通过提示要求 JSON、在本机解析并校验；格式错误不重发搜索请求，避免重复搜索费用。Listen 与 Critic 对语义验证失败最多补一次。鉴权、网络和取消不作为格式修复重试。
+- 页面预检包括 yt-dlp、ffmpeg、ffprobe 及所选 Provider 的密钥是否配置。默认的 DashScope `registered-web` 不检查 Codex CLI 或 MusicBrainz MCP；预检不调用付费模型。
+- 当前本机 V2 的 Listen、Research 搜索与整理、Critic 和 Creative 均配置为 DashScope `qwen3.8-omni-flash`。只有显式切换到 Codex Provider 或 `codex-web` 时，V2 才会调用 Codex。
 
 ### 4.5 Acquisition Provenance
 
@@ -211,7 +211,7 @@ Song Package 的稳定 ID 以规范化后的 title + artist 为主；album/year 
 
 Research Backend 独立配置：
 
-- `registered-web`：**当前已实现，默认。** 第一版用现有 Codex Web discovery 找资料，再由 Source Registry 读取正文、定位 excerpt、登记 hash；之后由所选 Research Text Provider（默认 Qwen）整理成 ResearchArtifact。
+- `registered-web`：**当前已实现，默认。** DashScope `qwen3.8-omni-flash` 使用内置联网搜索发现资料；服务端每轮最多读取 5 个公开网页，核验 excerpt 并登记 hash；之后同一个 Research Text Provider 整理成 ResearchArtifact。默认 V2 路径不调用 Codex CLI 或 MusicBrainz MCP。搜索轮数由模型的 agent 搜索控制，提示要求最多 3 个查询；网页读取数量由服务端硬性限制。
 - `provider-native`：预留。未来可直接使用支持原生 Web Search 且能满足 provenance 要求的模型；当前未启用，因为仅“模型说它搜过”不能替代现有 URL/excerpt/hash 记录。
 - `codex-web`：已定义为 Codex 端到端 Research 模式；使用时要求 `MUSIC_RESEARCH_PROVIDER=codex-cli`。
 
@@ -219,7 +219,7 @@ Research Backend 独立配置：
 
 ```
 Listen    = DashScope / qwen3.8-omni-flash
-Research  = DashScope / qwen3.8-omni-flash + registered-web
+Research  = DashScope / qwen3.8-omni-flash + native web search + registered-web source verification
 Critic    = DashScope / qwen3.8-omni-flash
 Creative  = DashScope / qwen3.8-omni-flash
 ```
@@ -326,7 +326,7 @@ Listen 必须主动输出 uncertainty，例如“完整混音下无法可靠判�
 1. **Research Backend**：发现并真实读取资料，产生可追溯的 registered sources。
 2. **Research Text Provider**：只读取已登记 excerpt，形成 ResearchArtifact findings；每条 finding 必须引用真实 evidenceId。
 
-默认 `registered-web` 因而仍保留 v1.2 已验证的网页读取安全边界，同时不把 Critic/Creative 继续绑死在 Codex。
+默认 `registered-web` 因而仍保留 v1.2 已验证的网页读取安全边界；发现、整理、Listen、Critic 与 Creative 都通过当前配置的 DashScope Qwen 模型完成，V2 默认流程无需 Codex 登录。
 
 继续优先登记：
 

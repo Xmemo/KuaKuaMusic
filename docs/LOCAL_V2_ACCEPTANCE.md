@@ -53,7 +53,7 @@ DASHSCOPE_UPLOAD_URL=https://dashscope.aliyuncs.com/api/v1/uploads
 
 默认 Research 缓存为 168 小时。首次验收不用改。
 
-`registered-web` 由本机 Codex CLI 读取网页并登记片段，再交给所选 Research 模型整理；配置 DashScope Key 之后仍需 **Codex CLI 已登录、项目 exec 配置可用、MusicBrainz MCP 可用及网页网络访问**。启动后查看页面「本机准备状态」，它只检查依赖及密钥是否配置，不证明密钥有效或歌曲内容质量达标。
+`registered-web` 使用 DashScope `qwen3.8-omni-flash` 的原生联网搜索发现资料；服务端最多读取并登记 5 个可公开访问的来源页面，核验摘录后再由同一个 Qwen 模型整理。此路径不调用 Codex CLI 或 MusicBrainz MCP。启动后查看页面「本机准备状态」，它只检查音频工具和密钥是否配置，不证明密钥有效或歌曲内容质量达标。
 
 ## 4. 启动
 

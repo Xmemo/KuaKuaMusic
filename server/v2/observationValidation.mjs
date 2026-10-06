@@ -50,6 +50,32 @@ export function removeUnsupportedNotableMoments(document, { durationSec }) {
   };
 }
 
+export function stripTimestampsFromGlobalObservations(document) {
+  let stripped = 0;
+  const observations = document.observations.map((observation) => {
+    if (
+      observation.precision !== "global" ||
+      (observation.startSec === null && observation.endSec === null)
+    ) {
+      return observation;
+    }
+    stripped++;
+    return { ...observation, startSec: null, endSec: null };
+  });
+  if (!stripped) return document;
+  return {
+    ...document,
+    observations,
+    uncertainties: [
+      ...document.uncertainties,
+      {
+        topic: "other",
+        text: `已清除 ${stripped} 条全局观察的时间范围；这些内容只作为整体听感，不作为局部时间依据。`,
+      },
+    ],
+  };
+}
+
 export function validateMusicObservation(document, { durationSec = document.timeline?.durationSec } = {}) {
   validateContract("v2-music-observation", document);
   invariant(Number.isFinite(durationSec) && durationSec > 0, "Listen 需要本地音频的有效时长。");

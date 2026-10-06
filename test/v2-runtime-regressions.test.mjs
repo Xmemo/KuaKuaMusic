@@ -12,6 +12,7 @@ import { createV2Service } from "../server/v2/v2Service.mjs";
 import { createYouTubeAudioProvider } from "../server/v2/youtubeAudioProvider.mjs";
 import {
   removeUnsupportedNotableMoments,
+  stripTimestampsFromGlobalObservations,
   validateMusicObservation,
   validateTimedCue,
 } from "../server/v2/observationValidation.mjs";
@@ -343,6 +344,34 @@ test("Listen rejects reversed ranges, out-of-duration ranges, invented IDs and g
   ]) { const doc = observation(); mutate(doc); assert.throws(() => validateMusicObservation(doc), { code: "EVIDENCE_INTEGRITY" }); }
 });
 
+test("Listen strips timestamps from global observations and preserves the rest without a paid retry", async (t) => {
+  const root = await tempRoot(t), audioPath = path.join(root, "analysis.mp3");
+  await fs.writeFile(audioPath, "synthetic audio");
+  const raw = observation();
+  raw.observations[0].precision = "global";
+  let modelCalls = 0;
+  const provider = createDashScopeAudioProvider({ env, fetcher: async (url, options) => {
+    if (options.method === "GET") return Response.json({ data: {
+      upload_host: "https://upload.invalid", upload_dir: "test", oss_access_key_id: "test",
+      signature: "test", policy: "test", x_oss_object_acl: "private", x_oss_forbid_overwrite: "true",
+    } });
+    if (String(url) === "https://upload.invalid") return new Response();
+    modelCalls++;
+    return sse(raw);
+  } });
+  const result = await provider.listen({ audioPath, song: { ...song, songId: "song-1" }, mediaRevisionId: "media-1",
+    durationSec: 120, model: "qwen3.8-omni-flash" });
+  assert.equal(modelCalls, 1);
+  assert.equal(result.observations[0].precision, "global");
+  assert.equal(result.observations[0].startSec, null);
+  assert.equal(result.observations[0].endSec, null);
+  assert.equal(result.notableMoments.length, 0);
+  assert.ok(result.uncertainties.some((item) => item.text.includes("已清除 1 条全局观察的时间范围")));
+  assert.doesNotThrow(() => validateMusicObservation(result, { durationSec: 120 }));
+  const normalized = stripTimestampsFromGlobalObservations(result);
+  assert.equal(normalized, result);
+});
+
 test("timed Critic cues may be independent of Audio Observation coverage but must stay inside the audio", () => {
   const cue = { startSec: 75, endSec: 80, observationIds: [] };
   validateTimedCue(cue, observation());
@@ -497,11 +526,12 @@ test("Listen audio request uses OSS streaming and repairs temporal errors before
 
 test("preflight reports missing dependencies without exposing any key and recognizes readiness", async () => {
   const plan = resolveProviderPlan({});
-  const missing = createV2Preflight({ env: {}, plan, runner: async () => { throw new Error("not found"); }, agentHealth: async () => ({}) });
+  let agentHealthCalls = 0;
+  const missing = createV2Preflight({ env: {}, plan, runner: async () => { throw new Error("not found"); }, agentHealth: async () => { agentHealthCalls++; return {}; } });
   const result = await missing(); assert.equal(result.ok, false);
   assert.equal(result.checks.find((item) => item.id === "dashscope").status, "missing");
-  assert.equal(result.checks.find((item) => item.id === "codex").status, "missing");
-  assert.equal(result.checks.find((item) => item.id === "musicbrainz").status, "missing");
+  assert.equal(result.checks.some((item) => item.id === "codex" || item.id === "musicbrainz"), false);
+  assert.equal(agentHealthCalls, 0);
   const readinessTimeouts = [];
   const ready = createV2Preflight({ env, plan, runner: async (_binary, _args, options) => { readinessTimeouts.push(options.timeoutMs); return {}; }, agentHealth: async () => ({ codexAvailable: true, authentication: "ready", projectConfiguration: "explicit", musicBrainz: "ready" }) });
   const good = await ready(); assert.equal(good.ok, true); assert.ok(!JSON.stringify(good).includes(env.DASHSCOPE_API_KEY));

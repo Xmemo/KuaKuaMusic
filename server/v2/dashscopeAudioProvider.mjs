@@ -5,11 +5,12 @@ import { AppError } from "../errors.mjs";
 import { getContract, validateContract } from "../schemaValidation.mjs";
 import {
   removeUnsupportedNotableMoments,
+  stripTimestampsFromGlobalObservations,
   validateMusicObservation,
 } from "./observationValidation.mjs";
 import { providerSignal, readProviderText } from "./providerTransport.mjs";
 
-export const DASHSCOPE_LISTEN_PROMPT_VERSION = "listen-v2.0.1";
+export const DASHSCOPE_LISTEN_PROMPT_VERSION = "listen-v2.0.2";
 
 function required(value, label) {
   const result = String(value || "").trim();
@@ -54,6 +55,7 @@ function listenPrompt(song, durationSec, correction = "") {
     "Listen to the supplied recording independently. Do not use web search, reviews, biographies, release history, or remembered external facts.",
     "Return JSON only. Write descriptions in Simplified Chinese. This is an observation document, not a review.",
     "The measured local audio duration is " + durationSec + " seconds. All ranges must fit this duration; global observations use null times. Notable moments must cite local observations covering their range.",
+    "For a global observation, startSec and endSec must both be null. Never attach a guessed timestamp to a global statement. Only describe a localized event with a supported time range and section or time_localized precision.",
     "Complete output JSON Schema: " + JSON.stringify(schema),
     "Describe only what can reasonably be heard in this audio. Timestamps are seconds from the beginning.",
     "Do not pretend to have an exact score or transcription. BPM, key and meter belong only in estimatedParameters and must include confidence.",
@@ -254,8 +256,9 @@ export function createDashScopeAudioProvider({
         raw = await requestObservation({ audioUrl, audioPath, model, song, durationSec, signal, correction });
         const candidate = build(raw);
         validateContract("v2-music-observation", candidate);
+        const withoutFalseTiming = stripTimestampsFromGlobalObservations(candidate);
         return validateMusicObservation(
-          removeUnsupportedNotableMoments(candidate, { durationSec }),
+          removeUnsupportedNotableMoments(withoutFalseTiming, { durationSec }),
           { durationSec },
         );
       } catch (error) {
