@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MusicLearning2026 Strudel Studio Seed Draft v2.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "code",
+    "alternativeCode",
+    "explanation",
+    "visualHints",
+    "experiment"
+  ],
+  "properties": {
+    "code": {
+      "type": "string"
+    },
+    "alternativeCode": {
+      "type": "string"
+    },
+    "explanation": {
+      "type": "string"
+    },
+    "visualHints": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "pianoroll",
+          "punchcard",
+          "spiral",
+          "scope",
+          "spectrum",
+          "pitchwheel"
+        ]
+      }
+    },
+    "experiment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "question",
+        "variable",
+        "baseline",
+        "changed",
+        "constants",
+        "listenFor",
+        "limitation"
+      ],
+      "properties": {
+        "question": {
+          "type": "string"
+        },
+        "variable": {
+          "type": "string"
+        },
+        "baseline": {
+          "type": "string"
+        },
+        "changed": {
+          "type": "string"
+        },
+        "constants": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "listenFor": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "limitation": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

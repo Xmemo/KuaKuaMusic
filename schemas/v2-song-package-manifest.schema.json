@@ -1,0 +1,140 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MusicLearning2026 SongPackageManifest v2.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "song",
+    "currentMediaRevisionId",
+    "mediaRevisions",
+    "observationRunIds",
+    "researchRunIds",
+    "analysisIds",
+    "blueprintIds",
+    "studioSeedIds",
+    "updatedAt"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "2.0"
+    },
+    "song": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "songId",
+        "title",
+        "artist",
+        "album",
+        "releaseYear",
+        "durationSec",
+        "sourcePlatform",
+        "sourceTrackUrl"
+      ],
+      "properties": {
+        "songId": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "artist": {
+          "type": "string"
+        },
+        "album": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "releaseYear": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "durationSec": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "sourcePlatform": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sourceTrackUrl": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "currentMediaRevisionId": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "mediaRevisions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "mediaRevisionId",
+          "createdAt",
+          "sha256"
+        ],
+        "properties": {
+          "mediaRevisionId": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "sha256": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "observationRunIds": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "researchRunIds": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "analysisIds": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "blueprintIds": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "studioSeedIds": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "updatedAt": {
+      "type": "string"
+    }
+  }
+}

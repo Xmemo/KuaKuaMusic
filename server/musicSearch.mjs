@@ -49,6 +49,7 @@ function mapTrack(track) {
     previewUrl: String(track.previewUrl || ""),
     trackUrl: String(track.trackViewUrl || track.collectionViewUrl || ""),
     releaseYear: track.releaseDate ? String(track.releaseDate).slice(0, 4) : "",
+    durationSec: Number.isFinite(Number(track.trackTimeMillis)) ? Math.round(Number(track.trackTimeMillis) / 1000) : undefined,
     platform: "MANUAL",
   };
 }

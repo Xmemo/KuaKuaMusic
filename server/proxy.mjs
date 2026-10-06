@@ -16,6 +16,7 @@ import {
 } from "./evidenceStore.mjs";
 import { createLocalSecurity } from "./localSecurity.mjs";
 import { AppError } from "./errors.mjs";
+import { createV2Service } from "./v2/v2Service.mjs";
 dotenv.config({ path: ".env.local", quiet: true });
 dotenv.config({ quiet: true });
 export function createApp({
@@ -27,7 +28,8 @@ export function createApp({
   webPort = Number(process.env.WEB_PORT || 3000),
 } = {}) {
   const app = express(),
-    security = createLocalSecurity({ apiPort: port, webPort });
+    security = createLocalSecurity({ apiPort: port, webPort }),
+    v2 = process.env.MUSIC_V2_ENABLED === "1" ? createV2Service() : null;
   app.disable("x-powered-by");
   app.use(security.boundary);
   app.use(express.json({ limit: "128kb" }));
@@ -86,6 +88,7 @@ export function createApp({
         );
       active = true;
       const controller = new AbortController();
+      let stage = "starting";
       const stream = req.get("accept")?.includes("text/event-stream");
       if (stream) {
         res.status(200);
@@ -106,7 +109,7 @@ export function createApp({
         try {
           const result = await operation(req.body, {
             signal: controller.signal,
-            onProgress: (value) => send("progress", value),
+            onProgress: (value) => { stage = value.stage || stage; send("progress", value); },
           });
           if (!controller.signal.aborted) {
             if (stream) {
@@ -118,6 +121,7 @@ export function createApp({
           if (!stream) throw error;
           const known = error instanceof AppError;
           send("error", {
+            stage,
             code: known ? error.code : "INTERNAL_ERROR",
             error: known ? error.message : "本机研究服务未能完成请求。",
           });
@@ -128,6 +132,49 @@ export function createApp({
         res.removeListener("close", disconnect);
       }
     });
+  if (v2) {
+    app.get("/api/agent/v2/health", route(async (req, res) => res.json(await v2.health({ refresh: req.query.refresh === "1" }))));
+    app.get(
+      "/api/agent/v2/provider-plan",
+      route(async (_req, res) => res.json(v2.providerPlan())),
+    );
+    app.post(
+      "/api/agent/v2/analyze",
+      researchRoute(async (body, context) =>
+        v2.analyze(body, context),
+      ),
+    );
+    app.post(
+      "/api/agent/v2/materialize",
+      researchRoute(async (body, context) =>
+        v2.materialize(body, context),
+      ),
+    );
+    app.post(
+      "/api/agent/v2/listen",
+      researchRoute(async (body, context) =>
+        v2.listen(body, context),
+      ),
+    );
+    app.post(
+      "/api/agent/v2/research",
+      researchRoute(async (body, context) =>
+        v2.research(body, context),
+      ),
+    );
+    app.post(
+      "/api/agent/v2/critic",
+      researchRoute(async (body, context) =>
+        v2.critic(body, context),
+      ),
+    );
+    app.post(
+      "/api/agent/v2/creative",
+      researchRoute(async (body, context) =>
+        v2.creative(body, context),
+      ),
+    );
+  }
   app.post("/api/agent/analyze", researchRoute(analyze));
   app.post("/api/agent/deep-dive", researchRoute(deepDive));
   app.post("/api/agent/studio/propose", researchRoute(proposeStudio));

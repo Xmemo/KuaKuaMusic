@@ -17,6 +17,7 @@ export interface SongMetadata {
   previewUrl?: string;
   trackUrl?: string;
   releaseYear?: string;
+  durationSec?: number;
   platform?: 'NETEASE' | 'QQ' | 'YOUTUBE' | 'MANUAL';
 }
 

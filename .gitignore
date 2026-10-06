@@ -12,9 +12,10 @@ dist
 dist-ssr
 *.local
 
-# Local MusicLearning2026 evidence packages are private working data by default.
+# Local MusicLearning2026 working data is private by default.
 .music-learning/evidence/
 .music-learning/diagnostics/
+.music-learning/library/
 
 # Editor directories and files
 .vscode/*

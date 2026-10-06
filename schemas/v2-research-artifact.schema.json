@@ -1,0 +1,131 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MusicLearning2026 ResearchArtifact v2.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "researchRunId",
+    "songId",
+    "createdAt",
+    "provider",
+    "backend",
+    "guidedByObservationIds",
+    "sourceIds",
+    "summary",
+    "findings",
+    "unknowns"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "2.0"
+    },
+    "researchRunId": {
+      "type": "string"
+    },
+    "songId": {
+      "type": "string"
+    },
+    "createdAt": {
+      "type": "string"
+    },
+    "provider": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "model"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        }
+      }
+    },
+    "backend": {
+      "type": "string",
+      "enum": [
+        "registered-web",
+        "provider-native",
+        "codex-web"
+      ]
+    },
+    "guidedByObservationIds": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "sourceIds": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "summary": {
+      "type": "string"
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "topic",
+          "text",
+          "evidenceIds",
+          "scope",
+          "versionScope"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "topic": {
+            "type": "string",
+            "enum": [
+              "identity",
+              "culture",
+              "harmony",
+              "rhythm",
+              "timbre",
+              "arrangement",
+              "structure",
+              "production"
+            ]
+          },
+          "text": {
+            "type": "string"
+          },
+          "evidenceIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "work",
+              "source_version",
+              "recording"
+            ]
+          },
+          "versionScope": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "unknowns": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

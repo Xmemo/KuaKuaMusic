@@ -176,22 +176,36 @@ const failureMessages = {
   AGENT_MCP: "MusicBrainz 工具连接失败，请稍后重试。",
   AGENT_FAILED: "Codex 未完成本次研究。请重试；若再次失败，可用错误编号定位服务日志。",
 };
-export async function runCodexStructured({ prompt, outputSchema, signal }) {
+export async function runCodexStructured({
+  prompt,
+  outputSchema,
+  signal,
+  model = null,
+  reasoningEffort = null,
+  researchEnabled = true,
+}) {
   if (!prompt?.trim() || !outputSchema?.trim())
     throw new AppError("Agent 请求缺少指令或结构契约。");
   const config = getCodexBridgeConfig();
+  const selectedModel = String(model || config.model || "").trim();
+  const selectedReasoningEffort = String(
+    reasoningEffort || config.reasoningEffort || "",
+  ).trim();
   const args = [
     "exec",
     "--ignore-user-config",
     "--ephemeral",
     "--sandbox",
     "read-only",
-    ...researchConfigArgs(),
-    "-c", "model_reasoning_effort=" + JSON.stringify(config.reasoningEffort),
+    ...(researchEnabled
+      ? researchConfigArgs()
+      : ["-c", 'approval_policy="never"']),
+    "-c",
+    "model_reasoning_effort=" + JSON.stringify(selectedReasoningEffort),
     "--output-schema",
     outputSchema,
   ];
-  if (config.model) args.push("--model", config.model);
+  if (selectedModel) args.push("--model", selectedModel);
   args.push("-");
   const result = await runCodexCommand(args, {
     prompt,
@@ -203,7 +217,14 @@ export async function runCodexStructured({ prompt, outputSchema, signal }) {
   if (result.code !== 0) {
     const code = classifyCodexFailure(result.stderr);
     const id = randomUUID();
-    console.warn(JSON.stringify({ event: "research_failed", id, stage: path.basename(outputSchema), code, exitCode: result.code, model: config.model }));
+    console.warn(JSON.stringify({
+      event: researchEnabled ? "research_failed" : "structured_turn_failed",
+      id,
+      stage: path.basename(outputSchema),
+      code,
+      exitCode: result.code,
+      model: selectedModel,
+    }));
     throw new AppError(
       failureMessages[code] + "（错误编号：" + id + "）",
       code,

@@ -1,0 +1,121 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MusicLearning2026 CreativeBlueprint v2.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "blueprintId",
+    "songId",
+    "analysisId",
+    "title",
+    "concept",
+    "sourceObservationIds",
+    "sourceInterpretationIds",
+    "variables",
+    "preserve",
+    "listenFor",
+    "limitations",
+    "studioEligible"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "2.0"
+    },
+    "blueprintId": {
+      "type": "string"
+    },
+    "songId": {
+      "type": "string"
+    },
+    "analysisId": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "concept": {
+      "type": "string"
+    },
+    "sourceObservationIds": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "sourceInterpretationIds": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "variables": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "type",
+          "baseline",
+          "variation",
+          "sourceObservationIds"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "tempo",
+              "rhythmic_density",
+              "subdivision",
+              "syncopation",
+              "layer_entry",
+              "register",
+              "motif_repetition",
+              "harmonic_rhythm",
+              "texture_density",
+              "filter_motion",
+              "timbre_brightness"
+            ]
+          },
+          "baseline": {
+            "type": "string"
+          },
+          "variation": {
+            "type": "string"
+          },
+          "sourceObservationIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "preserve": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "listenFor": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "limitations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "studioEligible": {
+      "type": "boolean"
+    }
+  }
+}
