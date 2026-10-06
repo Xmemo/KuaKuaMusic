@@ -167,5 +167,14 @@ export function createMusicAnalysisAgent({
     };
   }
 
-  return Object.freeze({ analyze });
+  return Object.freeze({
+    analyze,
+    describe: () => ({
+      architecture: "single-agent-skill",
+      runner: runner.name,
+      model: runner.model,
+      effort: runner.effort,
+      skill: config.skill,
+    }),
+  });
 }
