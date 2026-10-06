@@ -1,3 +1,5 @@
+import fs from "node:fs/promises";
+import path from "node:path";
 import { spawn } from "node:child_process";
 import { AppError } from "../errors.mjs";
 
@@ -60,6 +62,18 @@ export function createAntigravityRunner({
     signal,
     onProgress,
   }) {
+    const antigravitySkillDir = path.join(
+      workspace.root,
+      ".agents",
+      "skills",
+      config.skill.name,
+    );
+    await fs.mkdir(antigravitySkillDir, { recursive: true });
+    await fs.copyFile(
+      workspace.skillPath,
+      path.join(antigravitySkillDir, "SKILL.md"),
+    );
+
     return await new Promise((resolve, reject) => {
       const args = [
         "-p",
