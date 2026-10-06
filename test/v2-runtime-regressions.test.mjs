@@ -459,8 +459,10 @@ test("preflight reports missing dependencies without exposing any key and recogn
   assert.equal(result.checks.find((item) => item.id === "dashscope").status, "missing");
   assert.equal(result.checks.find((item) => item.id === "codex").status, "missing");
   assert.equal(result.checks.find((item) => item.id === "musicbrainz").status, "missing");
-  const ready = createV2Preflight({ env, plan, runner: async () => ({}), agentHealth: async () => ({ codexAvailable: true, authentication: "ready", projectConfiguration: "explicit", musicBrainz: "ready" }) });
+  const readinessTimeouts = [];
+  const ready = createV2Preflight({ env, plan, runner: async (_binary, _args, options) => { readinessTimeouts.push(options.timeoutMs); return {}; }, agentHealth: async () => ({ codexAvailable: true, authentication: "ready", projectConfiguration: "explicit", musicBrainz: "ready" }) });
   const good = await ready(); assert.equal(good.ok, true); assert.ok(!JSON.stringify(good).includes(env.DASHSCOPE_API_KEY));
+  assert.deepEqual(readinessTimeouts, [15000, 15000, 15000]);
 });
 
 test("Studio rejects formatting-only A/B changes and variables absent from the blueprint", async () => {

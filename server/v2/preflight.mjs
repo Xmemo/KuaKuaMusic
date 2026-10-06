@@ -2,7 +2,7 @@ export function createV2Preflight({ env, plan, runner, agentHealth }) {
   let cached, pending;
   const tool = async (id, label, binary, args) => {
     try {
-      await runner(binary, args, { timeoutMs: 5000, maxOutputBytes: 64 * 1024 });
+      await runner(binary, args, { timeoutMs: 15000, maxOutputBytes: 64 * 1024 });
       return { id, label, status: "ready", message: "可用" };
     } catch { return { id, label, status: "missing", message: "未找到或无法运行，请安装或设置对应的 MUSIC_*_BIN。" }; }
   };
