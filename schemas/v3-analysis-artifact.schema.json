@@ -133,11 +133,11 @@
           "type": "object",
           "additionalProperties": false,
           "required": [
-            "listenCheckpointExists",
+            "listenCheckpointCompleted",
             "noMcpDependency"
           ],
           "properties": {
-            "listenCheckpointExists": {
+            "listenCheckpointCompleted": {
               "type": "boolean"
             },
             "noMcpDependency": {
