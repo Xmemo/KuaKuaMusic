@@ -559,6 +559,10 @@ function MusicLearningApp() {
     </div>
   );
 }
+const V3App =
+  import.meta.env?.VITE_MUSIC_V3_ENABLED === "1"
+    ? React.lazy(() => import("./V3App"))
+    : null;
 const V2App =
   import.meta.env?.VITE_MUSIC_V2_ENABLED === "1"
     ? React.lazy(() => import("./V2App"))
@@ -568,6 +572,12 @@ const LegacyApp =
     ? React.lazy(() => import("./LegacyApp"))
     : null;
 export default function App() {
+  if (V3App)
+    return (
+      <React.Suspense fallback={<p>正在加载 Single-Agent v3</p>}>
+        <V3App />
+      </React.Suspense>
+    );
   if (V2App)
     return (
       <React.Suspense fallback={<p>正在加载 Audio-first v2</p>}>
