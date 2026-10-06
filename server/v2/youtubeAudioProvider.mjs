@@ -10,13 +10,11 @@ function buildQueries(song) {
   const title = String(song.title || "").replace(/"/gu, "").trim();
   const artist = String(song.artist || "").replace(/"/gu, "").trim();
   const album = String(song.album || "").replace(/"/gu, "").trim();
-  const values = album
-    ? [[title, album].filter(Boolean).join(" "), [title, artist].filter(Boolean).join(" ")]
-    : [
-        title,
-        [title, artist].filter(Boolean).join(" "),
-      ];
-  return [...new Set(values)].slice(0, 3);
+  const values = [
+    [title, artist].filter(Boolean).join(" "),
+    album ? [title, album].filter(Boolean).join(" ") : "",
+  ];
+  return [...new Set(values.filter(Boolean))].slice(0, 3);
 }
 
 function mapEntry(entry, song) {
@@ -73,7 +71,8 @@ export function createYouTubeAudioProvider({
 
   async function search(song, { signal, onProgress } = {}) {
     const found = new Map();
-    for (const query of buildQueries(song)) {
+    const queries = buildQueries(song);
+    const searchQuery = async (query) => {
       onProgress?.({
         stage: "resolving_audio",
         label: "正在准备音源预览",
@@ -93,7 +92,22 @@ export function createYouTubeAudioProvider({
         { signal, timeoutMs: 120000, maxOutputBytes: 8 * 1024 * 1024 },
       );
       const payload = JSON.parse(result.stdout || "{}");
-      for (const entry of payload.entries || []) {
+      return (payload.entries || []).filter(Boolean);
+    };
+
+    const primaryEntries = await searchQuery(queries[0]);
+    for (const entry of primaryEntries) {
+      const candidate = mapEntry(entry, song);
+      if (candidate) found.set(candidate.sourceId, candidate);
+    }
+
+    const firstThree = primaryEntries.slice(0, 3)
+      .map((entry) => mapEntry(entry, song))
+      .filter(Boolean);
+    const hasSuitableTopThree = chooseAudioSource(song, firstThree).candidates.length > 0;
+    if (!hasSuitableTopThree && queries[1]) {
+      const fallbackEntries = await searchQuery(queries[1]);
+      for (const entry of fallbackEntries) {
         const candidate = mapEntry(entry, song);
         if (candidate && !found.has(candidate.sourceId)) {
           found.set(candidate.sourceId, candidate);

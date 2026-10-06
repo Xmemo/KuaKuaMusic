@@ -28,8 +28,9 @@ export function hasCriticEvidence(observation, sources = []) {
 
 export function validateCriticReferences(
   draft,
-  { observation = null, sources = [] } = {},
+  { observation = null, sources = [], durationSec } = {},
 ) {
+  const knownDuration = observation?.timeline?.durationSec ?? durationSec;
   const observationIds = new Set(
     observation?.observations?.map((item) => item.id) || [],
   );
@@ -99,11 +100,7 @@ export function validateCriticReferences(
             cue.endSec >= cue.startSec,
           "带时间范围的听歌线索必须提供有效起止秒数。",
         );
-        invariant(
-          cue.observationIds.length > 0,
-          "精确时间听歌线索必须有 Audio Observation 支持。",
-        );
-        validateTimedCue(cue, observation);
+        validateTimedCue(cue, observation, knownDuration);
       }
     }
   }
@@ -123,7 +120,7 @@ function criticPrompt(song, observation, research, sources) {
     "Do not invent BPM, exact chords, instruments, plugins or production processes that are absent from the inputs.",
     "Create dynamic modules only where there is something worth explaining. Allowed categories: culture,rhythm,harmony,melody,timbre,arrangement,structure,production,energy.",
     "Each module must reference interpretations of the same category.",
-    "Listening cues should tell the user where/what to hear. A cue with exact startSec/endSec must cite at least one time-localized Audio Observation.",
+    "Listening cues should tell the user where/what to hear. Use exact startSec/endSec when they make the cue more useful; do not require a time-localized Audio Observation citation for the cue itself. Keep timestamps inside the measured recording duration, and cite relevant observations or research evidence when available.",
     "Overall hook/走心(emo)/上头(hype)/懂行(pro) should be genuinely different expressions but each must list the interpretationIds it uses.",
     "studioPotential is none,rhythm,harmony,arrangement,mixed. Mark it only when the explained mechanism could become a useful learning reconstruction.",
     "Return the complete v2-critic-draft JSON and nothing else.",
@@ -260,14 +257,14 @@ export function createCriticPass({
       prompt: criticPrompt(song, observation, research, sources),
       signal,
     });
-    try { validateCriticReferences(draft, { observation, sources }); }
+    try { validateCriticReferences(draft, { observation, sources, durationSec: song.durationSec }); }
     catch (error) {
       if (signal?.aborted) throw error;
       draft = await provider.generateJson({ schemaName: "v2-critic-draft", signal,
         prompt: criticPrompt(song, observation, research, sources) + "\n\nRepair this validation error: " + error.message +
-          "\nUse null cue timestamps unless time-localized observations cover the entire cue range. Previous draft:\n" + serialize(draft) });
+          "\nKeep exact cue timestamps inside the measured recording duration. Do not remove a useful timestamp merely because no time-localized Audio Observation covers it. Previous draft:\n" + serialize(draft) });
       try {
-        validateCriticReferences(draft, { observation, sources });
+        validateCriticReferences(draft, { observation, sources, durationSec: song.durationSec });
       } catch (repairError) {
         if (signal?.aborted) throw repairError;
         const normalized = normalizeCategoryMismatchedModules(
@@ -275,7 +272,7 @@ export function createCriticPass({
           observation,
         );
         if (normalized === draft) throw repairError;
-        validateCriticReferences(normalized, { observation, sources });
+        validateCriticReferences(normalized, { observation, sources, durationSec: song.durationSec });
         draft = normalized;
       }
     }

@@ -85,18 +85,14 @@ export function validateMusicObservation(document, { durationSec = document.time
   return document;
 }
 
-export function validateTimedCue(cue, observation) {
-  const duration = observation?.timeline?.durationSec;
-  invariant(Number.isFinite(duration) && cue.startSec >= 0 && cue.endSec <= duration,
+export function validateTimedCue(
+  cue,
+  observation,
+  durationSec = observation?.timeline?.durationSec,
+) {
+  invariant(Number.isFinite(cue.startSec) && Number.isFinite(cue.endSec) &&
+    cue.startSec >= 0 && cue.endSec >= cue.startSec,
+  "精确时间听歌线索必须提供有效的非负时间范围。");
+  if (Number.isFinite(durationSec)) invariant(cue.endSec <= durationSec,
     "精确时间听歌线索必须位于实际音频内。");
-  const local = observation.observations.filter((item) => cue.observationIds.includes(item.id) &&
-    item.precision === "time_localized" && Number.isFinite(item.startSec) && Number.isFinite(item.endSec));
-  invariant(local.length > 0, "精确时间听歌线索必须引用具有时间定位的 Audio Observation。");
-  const intervals = local.map((item) => [item.startSec, item.endSec]).sort((a, b) => a[0] - b[0]);
-  let coveredUntil = cue.startSec;
-  for (const [start, end] of intervals) {
-    if (start > coveredUntil + 0.5) break;
-    coveredUntil = Math.max(coveredUntil, end);
-  }
-  invariant(coveredUntil >= cue.endSec, "听歌线索的时间范围超出了引用观察的覆盖范围。");
 }

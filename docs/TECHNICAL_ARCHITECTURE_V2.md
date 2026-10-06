@@ -105,7 +105,7 @@ iTunes 的 `trackTimeMillis` 应在迁移时保存，以提高音源匹配质量
 
 默认实现目标为 YouTube resolver，但业务层只依赖 `AudioSourceProvider`。未来可以替换为 Local File、授权音源或其他来源。
 
-搜索最多 10 个候选，按固定两步构造查询：有 album 时先搜 `"{title}" "{album}"`，没有 album 时先搜 `"{title}"`；第二步搜 `"{title}" "{artist}"`。合并后按相关度排序，前 5 个候选提供预览。
+搜索最多 10 个候选，先搜 `"{title}" "{artist}"`。检查这次返回的前 3 个结果；若没有达到现有候选匹配门槛的结果，且有 album，再搜 `"{title}" "{album}"` 并合并去重。没有 album 时只执行第一步。最终按相关度排序，前 5 个候选提供预览。
 
 不允许“取第一条直接使用”。
 
@@ -127,7 +127,7 @@ iTunes 的 `trackTimeMillis` 应在迁移时保存，以提高音源匹配质量
 
 Channel authority 优先：官方艺人频道、Topic、发行商/厂牌、游戏发行方等。
 
-音源候选按两种关键词搜索并合并：有专辑时先查「歌名 + 专辑」，无专辑时先查歌名；随后查「歌名 + 艺人」。艺人元数据可能因版权被替换，所以不把艺人名放在第一轮，也不追加其他关键词变体。搜索词和过程不显示给用户。
+音源候选先查「歌名 + 艺人」；如果前三条里没有合适匹配，再查「歌名 + 专辑」。不添加其他关键词变体。搜索词和过程不显示给用户。
 
 ### 4.4 候选排序与人工确认
 
@@ -142,9 +142,10 @@ Channel authority 优先：官方艺人频道、Topic、发行商/厂牌、游�
 - 音频缓存必须匹配 title、artist、album、releaseYear、有效 durationSec、sourcePlatform、sourceTrackUrl 的身份摘要，且音频文件仍存在。
 - Listen 按 media revision、provider、model、promptVersion 复用；Research 另校验目录身份摘要、promptVersion 和 TTL，旧缺少这些字段的缓存重新生成。
 - Listen/Research 同时保存时，manifest 的读取、修改、写入在本机单个 API 进程中串行化；原子替换仅保证单文件落盘。当前不支持多个 API 进程同时写同一 library。
-- Listen 的 sections、observations、notableMoments 检查范围、重复 ID 和引用；显著时刻必须由局部观察覆盖。Critic 精确时间线索必须位于实测时长内，且由 time_localized 观察覆盖。
+- Listen 的 sections、observations、notableMoments 检查范围、重复 ID 和引用；显著时刻必须由局部观察覆盖。Critic 精确时间线索必须位于实测音频时长内，但不要求必须由 time_localized Audio Observation 覆盖；可结合听辨、段落时间、资料和解释来提供线索，相关引用在可用时保留。
 - DashScope 文本和音频请求使用 SSE；JSON Object 模式仍发送完整合同形状并在本机校验。格式失败最多补一次；Listen 与 Critic 另外对语义验证失败补一次。鉴权、网络和取消不作为格式修复重试。
 - 页面预检包括 yt-dlp、ffmpeg、ffprobe、所选 Provider 的密钥是否配置，以及 registered-web 需要的 Codex CLI/登录/MusicBrainz。预检不调用付费模型。
+- 当前本机默认的 Listen、Research synthesis、Critic 和 Creative 使用 DashScope `qwen3.8-omni-flash`；`registered-web` 的网页资料发现仍由 Codex CLI 执行，随后才交给 DashScope Qwen 整理。因此整条分析链路并非只调用阿里模型。未设置 `CODEX_MODEL` / `CODEX_REASONING_EFFORT` 时，Codex 资料发现默认使用 `gpt-6-luna` / `xhigh`。
 
 ### 4.5 Acquisition Provenance
 

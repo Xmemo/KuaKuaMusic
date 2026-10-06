@@ -20,7 +20,7 @@ import { resolveProviderPlan } from "../music-learning/v2/providerRegistry.mjs";
 import { chooseAudioSource } from "../music-learning/v2/sourceMatcher.mjs";
 import { createStrudelSeedPass } from "../server/v2/strudelSeedPass.mjs";
 import { createCreativePass } from "../server/v2/creativePass.mjs";
-import { createCriticPass } from "../server/v2/criticPass.mjs";
+import { createCriticPass, validateCriticReferences } from "../server/v2/criticPass.mjs";
 import { createResearchPass } from "../server/v2/researchPass.mjs";
 import { DASHSCOPE_LISTEN_PROMPT_VERSION } from "../server/v2/dashscopeAudioProvider.mjs";
 import { RESEARCH_PROMPT_VERSION } from "../server/v2/researchPass.mjs";
@@ -240,7 +240,7 @@ test("materialize requires preview selection and reuses the chosen recording, bu
   assert.equal(stub.calls.some((item) => item.args.includes("--no-playlist")), false);
   const first = await service.materialize({ song, selectedSourceId: preview.candidates[0].sourceId });
   assert.equal(first.status, "ready");
-  assert.equal(stub.calls.filter((item) => item.args.some((arg) => arg.startsWith("ytsearch10:"))).length, 2,
+  assert.equal(stub.calls.filter((item) => item.args.some((arg) => arg.startsWith("ytsearch10:"))).length, 1,
     "confirming a preview should inspect that video directly instead of repeating keyword search");
   const calls = stub.calls.length;
   const againPreview = await service.materialize({ song });
@@ -343,13 +343,20 @@ test("Listen rejects reversed ranges, out-of-duration ranges, invented IDs and g
   ]) { const doc = observation(); mutate(doc); assert.throws(() => validateMusicObservation(doc), { code: "EVIDENCE_INTEGRITY" }); }
 });
 
-test("timed Critic cues must be covered by local observations inside the audio", () => {
-  const cue = { startSec: 75, endSec: 80, observationIds: ["obs-1"] };
+test("timed Critic cues may be independent of Audio Observation coverage but must stay inside the audio", () => {
+  const cue = { startSec: 75, endSec: 80, observationIds: [] };
   validateTimedCue(cue, observation());
   assert.throws(() => validateTimedCue({ ...cue, endSec: 121 }, observation()), /实际音频/);
-  assert.throws(() => validateTimedCue({ ...cue, startSec: 60 }, observation()), /覆盖范围/);
+  assert.throws(() => validateTimedCue({ ...cue, startSec: 80, endSec: 75 }, observation()), /有效的非负时间范围/);
   const global = observation(); global.observations[0].precision = "global";
-  assert.throws(() => validateTimedCue(cue, global), /时间定位/);
+  assert.doesNotThrow(() => validateTimedCue(cue, global));
+  assert.doesNotThrow(() => validateTimedCue(cue, null));
+});
+
+test("Critic reference validation accepts a timed cue without Audio Observation IDs", () => {
+  const draft = criticDraft();
+  draft.modules[0].listeningCues[0].observationIds = [];
+  assert.doesNotThrow(() => validateCriticReferences(draft, { observation: observation() }));
 });
 
 test("Critic repairs only one semantic failure with the original supporting artifacts", async () => {
