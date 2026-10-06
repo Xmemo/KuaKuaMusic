@@ -37,7 +37,9 @@ export interface V3StudioResult {
   sourceInterpretationIds: string[];
   code: string;
   alternativeCode: string;
-  visualHints: string[];
+  visualHints: Array<
+    "pianoroll" | "punchcard" | "spiral" | "scope" | "spectrum" | "pitchwheel"
+  >;
   playback: {
     bpm: number;
     beatsPerCycle: number;
