@@ -72,3 +72,42 @@ test("close candidates require manual confirmation", () => {
   assert.equal(result.selected, null);
   assert.equal(result.candidates.length, 2);
 });
+
+test("unrelated videos with an artist-name substring are not presented as source matches", () => {
+  const result = chooseAudioSource(
+    { title: "Antagonistic", artist: "Varlan", album: "Pacific Dreams 88.9", durationSec: null },
+    [{
+      sourceId: "workout-1",
+      title: "Arm antagonist drop set",
+      artistHint: "Marius Varlan",
+      channel: "Marius Varlan",
+      durationSec: 178,
+      isOfficial: false,
+      isTopic: false,
+      isPublisher: false,
+    }],
+  );
+
+  assert.equal(result.selected, null);
+  assert.deepEqual(result.candidates, []);
+});
+
+test("an exact-title Topic upload remains a manual option when catalog artist metadata is unreliable", () => {
+  const result = chooseAudioSource(
+    { title: "Antagonistic", artist: "Varlan", album: "Pacific Dreams 88.9", durationSec: 178 },
+    [{
+      sourceId: "topic-title-match",
+      title: "Antagonistic",
+      artistHint: null,
+      channel: "Release - Topic",
+      durationSec: 205,
+      isOfficial: false,
+      isTopic: true,
+      isPublisher: false,
+    }],
+  );
+
+  assert.equal(result.decision, "manual_required");
+  assert.equal(result.selected, null);
+  assert.equal(result.candidates[0].sourceId, "topic-title-match");
+});

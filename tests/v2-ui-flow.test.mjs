@@ -56,6 +56,9 @@ function harness(t, analyze, { songs = [song], search } = {}) {
   }
   return { window, document, errors, requests, button, start };
 }
+function hasHeading(document, text) {
+  return [...document.querySelectorAll("h2")].some((heading) => heading.textContent === text);
+}
 
 test("v2 displays configuration gaps, actual source, cache hits, all core dimensions and scoped limits", async (t) => {
   const ui = harness(t, async () => Response.json(completed)); await ui.start();
@@ -76,11 +79,27 @@ test("v2 displays configuration gaps, actual source, cache hits, all core dimens
 test("v2 confirmation shows an independent source link and reason before selecting a source", async (t) => {
   const ui = harness(t, async (_, __, count) => Response.json(count === 1 ? { status: "confirmation_required", candidates: [candidate], reason: "实测时长不符" } : completed));
   await ui.start(); await until(() => ui.document.body.textContent.includes("打开音源核对"));
+  assert.equal(hasHeading(ui.document, "选择歌曲"), false, "hide the long catalog result list while resolving audio");
   assert.match(ui.document.body.textContent, /实测时长不符/);
   assert.equal(ui.requests.length, 1);
   assert.equal(ui.document.querySelector('a[href="https://youtube.com/watch?v=test"]').closest("button"), null);
   [...ui.document.querySelectorAll("button")].find((entry) => entry.textContent.includes("正确录音")).click();
   await until(() => ui.requests.length === 2); assert.equal(ui.requests[1].selectedSourceId, "yt-1");
+});
+
+test("empty YouTube match results are explicit and return to catalog candidates", async (t) => {
+  const ui = harness(t, async () => Response.json({
+    status: "confirmation_required", candidates: [],
+    reason: "YouTube 返回了搜索结果，但没有候选达到可信的歌曲标题匹配度。",
+  }), { songs: [song, { ...song, id: "song-2", title: "另一个版本" }] });
+  await ui.start();
+  await until(() => ui.document.body.textContent.includes("暂未找到可信音源"));
+  assert.match(ui.document.body.textContent, /没有候选达到可信的歌曲标题匹配度/);
+  assert.equal(hasHeading(ui.document, "选择歌曲"), false);
+  ui.button("返回歌曲结果，换一个版本").click();
+  await until(() => hasHeading(ui.document, "选择歌曲"));
+  assert.match(ui.document.body.textContent, /另一个版本/);
+  assert.deepEqual(ui.errors, []);
 });
 
 test("v2 stream failures display the real failed stage and cancellation settles without an error", async (t) => {

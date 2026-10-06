@@ -174,19 +174,14 @@ export function createV2Service({
     let requiresSanityCheck = match.requiresSanityCheck;
 
     if (selectedSourceId) {
-      selected =
-        match.candidates.find(
-          (candidate) => candidate.sourceId === selectedSourceId,
-        ) ||
-        candidates.find(
-          (candidate) => candidate.sourceId === selectedSourceId,
-        ) ||
-        null;
+      selected = match.candidates.find(
+        (candidate) => candidate.sourceId === selectedSourceId,
+      ) || null;
       if (!selected) {
         throw new AppError(
-          "所选音源已不在当前 YouTube 候选中，请重新选择。",
-          "V2_AUDIO_SOURCE_STALE",
-          409,
+          "所选 YouTube 视频与歌曲名或艺人匹配度不足，请返回歌曲列表换一个版本。",
+          "V2_AUDIO_SOURCE_NOT_PLAUSIBLE",
+          422,
         );
       }
       if (selected.matchScore == null) {
@@ -194,6 +189,18 @@ export function createV2Service({
       }
       decision = "manual_selected";
       requiresSanityCheck = false;
+    }
+
+    if (!selected && !match.candidates.length) {
+      return {
+        status: "confirmation_required",
+        reused: false,
+        songId: pkg.song.songId,
+        song: pkg.song,
+        candidates: [],
+        reason:
+          "YouTube 返回了搜索结果，但没有候选达到可信的歌曲标题匹配度。艺人信息可能是别名；请返回歌曲列表，换一个目录版本后再试。",
+      };
     }
 
     if (!selected) {

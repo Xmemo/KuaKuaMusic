@@ -2,18 +2,21 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import crypto from "node:crypto";
 import { createReadStream } from "node:fs";
-import { chooseAudioSource, normalizeMusicText } from "../../music-learning/v2/sourceMatcher.mjs";
+import { chooseAudioSource, normalizeMusicText, scoreAudioCandidate } from "../../music-learning/v2/sourceMatcher.mjs";
 import { AppError } from "../errors.mjs";
 import { runProcess } from "./processRunner.mjs";
 
 function buildQueries(song) {
-  const quoted = (value) => '"' + String(value || "").replace(/"/gu, "") + '"';
-  const base = quoted(song.title) + " " + quoted(song.artist);
-  const values = [
-    base,
-    base + " official audio",
-    song.album ? base + " " + quoted(song.album) : base + " OST",
-  ];
+  const title = String(song.title || "").replace(/"/gu, "").trim();
+  const artist = String(song.artist || "").replace(/"/gu, "").trim();
+  const album = String(song.album || "").replace(/"/gu, "").trim();
+  const values = album
+    ? [[title, album].filter(Boolean).join(" "), title, [title, artist].filter(Boolean).join(" ")]
+    : [
+        title,
+        [title, artist].filter(Boolean).join(" "),
+        [title, artist, "official audio"].filter(Boolean).join(" "),
+      ];
   return [...new Set(values)].slice(0, 3);
 }
 
@@ -98,9 +101,12 @@ export function createYouTubeAudioProvider({
           found.set(candidate.sourceId, candidate);
         }
       }
-      if (found.size >= 10) break;
+      if (chooseAudioSource(song, [...found.values()]).decision === "auto_high") break;
     }
-    return [...found.values()].slice(0, 10);
+    return [...found.values()]
+      .map((candidate) => scoreAudioCandidate(song, candidate))
+      .sort((a, b) => b.matchScore - a.matchScore)
+      .slice(0, 10);
   }
 
   function choose(song, candidates) {

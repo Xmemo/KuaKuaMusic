@@ -263,6 +263,21 @@ test("a duration mismatch pauses before Listen and manual confirmation reuses th
   assert.equal(stub.calls.length, calls);
 });
 
+test("materialize returns a clear empty match state for weak YouTube results without downloading them", async (t) => {
+  const root = await tempRoot(t), stub = audioRunner();
+  stub.setVersion({ id: "workout", title: "Arm antagonist drop set", artist: "Marius Varlan",
+    channel: "Marius Varlan", duration: 178 }, 178);
+  const service = createV2Service({ env: { MUSIC_LIBRARY_DIR: root }, runner: stub.runner });
+  const result = await service.materialize({ song: {
+    title: "Antagonistic", artist: "Varlan", album: "Pacific Dreams 88.9", durationSec: 178,
+  } });
+
+  assert.equal(result.status, "confirmation_required");
+  assert.deepEqual(result.candidates, []);
+  assert.match(result.reason, /没有候选达到可信的歌曲标题匹配度/);
+  assert.equal(stub.calls.some(({ args }) => args.includes("--no-playlist")), false);
+});
+
 test("medium confidence source requires confirmation before acquisition", () => {
   const result = chooseAudioSource(song, [{ sourceId: "medium", title: song.title, artistHint: song.artist, albumHint: null,
     channel: "Fan", durationSec: 140, isOfficial: false, isTopic: false, isPublisher: false }]);

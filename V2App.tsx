@@ -30,6 +30,7 @@ function rangeLabel(start: number | null, end: number | null) {
 export default function V2App() {
   const [query, setQuery] = useState("");
   const [matches, setMatches] = useState<SongMetadata[]>([]);
+  const [showMatches, setShowMatches] = useState(false);
   const [visibleMatches, setVisibleMatches] = useState(60);
   const [selected, setSelected] = useState<SongMetadata | null>(null);
   const [result, setResult] = useState<V2AnalyzeResponse | null>(null);
@@ -62,9 +63,11 @@ export default function V2App() {
     setBusy("正在搜索歌曲");
     setError("");
     setResult(null);
+    setSelected(null);
     try {
       setMatches(await searchSongs(query, controller.current.signal));
       setVisibleMatches(60);
+      setShowMatches(true);
     } catch (cause) {
       if ((cause as Error).name !== "AbortError") setError((cause as Error).message);
     } finally {
@@ -76,10 +79,11 @@ export default function V2App() {
     controller.current?.abort();
     controller.current = new AbortController();
     setSelected(song);
+    setShowMatches(false);
     setBusy("正在准备本地歌曲");
     setProgress(null);
     setError("");
-    if (!selectedSourceId) setResult(null);
+    setResult(null);
     try {
       const value = await analyzeSongV2(
         song,
@@ -161,9 +165,16 @@ export default function V2App() {
           </div>
         ) : null}
 
-        {error ? <p className="notice" role="alert">{error}</p> : null}
+        {error ? (
+          <>
+            <p className="notice" role="alert">{error}</p>
+            {selected && matches.length ? (
+              <button onClick={() => { setResult(null); setShowMatches(true); }}>返回歌曲结果，换一个版本</button>
+            ) : null}
+          </>
+        ) : null}
 
-        {matches.length ? (
+        {showMatches && matches.length ? (
           <section className="panel">
             <h2>选择歌曲</h2>
             <p className="muted">找到 {matches.length} 条候选，已展示 {Math.min(visibleMatches, matches.length)} 条。</p>
@@ -188,10 +199,14 @@ export default function V2App() {
         {result?.status === "confirmation_required" && selected ? (
           <section className="panel">
             <p className="eyebrow">需要确认音源</p>
-            <h2>YouTube 找到几个相近版本</h2>
-            <p className="muted">请先打开候选音源核对版本，再选择要分析的录音。</p>
+            <h2>{result.candidates.length ? "YouTube 找到几个可能版本" : "暂未找到可信音源"}</h2>
+            <p className="muted">
+              {result.candidates.length
+                ? "请先打开候选音源核对版本，再选择要分析的录音。"
+                : "YouTube 搜索已经结束，但候选结果与当前歌曲资料不够吻合，暂时不能安全选择。"}
+            </p>
             {result.reason ? <p className="notice">{result.reason}</p> : null}
-            <div className="song-grid">
+            {result.candidates.length ? <div className="song-grid">
               {result.candidates.map((candidate) => (
                 <div key={candidate.sourceId}>
                 <button
@@ -209,7 +224,12 @@ export default function V2App() {
                 <a href={candidate.url} target="_blank" rel="noreferrer">打开音源核对</a>
                 </div>
               ))}
-            </div>
+            </div> : null}
+            {!result.candidates.length && matches.length ? (
+              <button onClick={() => { setResult(null); setSelected(null); setShowMatches(true); }}>
+                返回歌曲结果，换一个版本
+              </button>
+            ) : null}
           </section>
         ) : null}
 

@@ -122,8 +122,26 @@ export function chooseAudioSource(song, candidates) {
     .map((candidate) => scoreAudioCandidate(song, candidate))
     .sort((a, b) => b.matchScore - a.matchScore);
 
-  const best = scored[0] || null;
-  const second = scored[1] || null;
+  // A high artist/channel resemblance must not make an unrelated video title
+  // look like a plausible song recording (for example, "Varlan" matching a
+  // workout video uploaded by "Marius Varlan"). Keep weak results out of the
+  // confirmation UI; manual confirmation is for plausible recording variants.
+  const plausible = scored.filter((candidate) => {
+    const titleAndArtistAgree =
+      candidate.matchScore >= 0.65 &&
+      candidate.scoreParts.title >= 0.35 &&
+      candidate.scoreParts.artist >= 0.35;
+    // Catalog artist credits can be aliases or deliberately obfuscated. Keep
+    // an exact-title Topic/publisher upload as a manual-only possibility when
+    // artist metadata is absent; it can never become auto_high on title alone.
+    const strongTitleFromMusicChannel =
+      candidate.scoreParts.title >= 0.9 &&
+      candidate.matchScore >= 0.45 &&
+      (candidate.isTopic || candidate.isOfficial || candidate.isPublisher);
+    return titleAndArtistAgree || strongTitleFromMusicChannel;
+  });
+  const best = plausible[0] || null;
+  const second = plausible[1] || null;
   if (!best) {
     return {
       decision: "manual_required",
@@ -139,7 +157,7 @@ export function chooseAudioSource(song, candidates) {
       decision: "auto_high",
       requiresSanityCheck: false,
       selected: best,
-      candidates: scored.slice(0, 10),
+      candidates: plausible.slice(0, 10),
     };
   }
   if (best.matchScore >= 0.75 && gap >= 0.05) {
@@ -147,18 +165,23 @@ export function chooseAudioSource(song, candidates) {
       decision: "manual_required",
       requiresSanityCheck: true,
       selected: null,
-      candidates: scored.slice(0, 3),
+      candidates: plausible.slice(0, 3),
     };
   }
   return {
     decision: "manual_required",
     requiresSanityCheck: false,
     selected: null,
-    candidates: scored.slice(0, 3),
+    candidates: plausible.slice(0, 3),
   };
 }
 
 export const audioMatchThresholds = Object.freeze({
+  minimumCandidateScore: 0.65,
+  minimumTitleSimilarity: 0.35,
+  minimumArtistSimilarity: 0.35,
+  manualTitleFloor: 0.45,
+  strongTitleSimilarity: 0.9,
   high: 0.88,
   highGap: 0.08,
   medium: 0.75,
