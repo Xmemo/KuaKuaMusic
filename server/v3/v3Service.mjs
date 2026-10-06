@@ -11,6 +11,7 @@ import {
   STRUDEL_SOUND_BANK,
 } from "../../studio/runtimeConfig.mjs";
 import { validateRuntimePlayback } from "../../studio/runtimePolicy.mjs";
+import { createV3Preflight } from "./preflight.mjs";
 
 async function mediaFilesExist(media) {
   try {
@@ -75,6 +76,7 @@ export function createV3Service({
   });
   const youtube = createYouTubeAudioProvider({ env });
   const agent = createMusicAnalysisAgent({ env, ...(runner ? { runner } : {}) });
+  const preflight = createV3Preflight({ env });
 
   async function materialize(
     {
@@ -330,10 +332,8 @@ export function createV3Service({
   return Object.freeze({
     analyze,
     materialize,
-    runner: () => ({
-      architecture: "single-agent-skill",
-      skill: "music-analysis",
-    }),
+    runner: agent.describe,
+    health: preflight.health,
     libraryRoot: library.root,
   });
 }
