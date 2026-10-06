@@ -136,6 +136,12 @@ export function createApp({
     });
   if (v3) {
     app.get(
+      "/api/agent/v3/health",
+      route(async (req, res) =>
+        res.json(await v3.health({ refresh: req.query.refresh === "1" })),
+      ),
+    );
+    app.get(
       "/api/agent/v3/runner",
       route(async (_req, res) => res.json(v3.runner())),
     );
