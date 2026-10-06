@@ -2,8 +2,11 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import crypto from "node:crypto";
 import { AppError } from "../errors.mjs";
-import { getContract } from "../schemaValidation.mjs";
-import { validateMusicObservation } from "./observationValidation.mjs";
+import { getContract, validateContract } from "../schemaValidation.mjs";
+import {
+  removeUnsupportedNotableMoments,
+  validateMusicObservation,
+} from "./observationValidation.mjs";
 import { providerSignal, readProviderText } from "./providerTransport.mjs";
 
 export const DASHSCOPE_LISTEN_PROMPT_VERSION = "listen-v2.0.1";
@@ -249,7 +252,12 @@ export function createDashScopeAudioProvider({
       let raw;
       try {
         raw = await requestObservation({ audioUrl, audioPath, model, song, durationSec, signal, correction });
-        return validateMusicObservation(build(raw), { durationSec });
+        const candidate = build(raw);
+        validateContract("v2-music-observation", candidate);
+        return validateMusicObservation(
+          removeUnsupportedNotableMoments(candidate, { durationSec }),
+          { durationSec },
+        );
       } catch (error) {
         if (signal?.aborted || attempt || !["INVALID_CONTRACT", "EVIDENCE_INTEGRITY", "V2_LISTEN_INVALID_JSON"].includes(error.code)) throw error;
         correction = "Repair the validation error: " + error.message +

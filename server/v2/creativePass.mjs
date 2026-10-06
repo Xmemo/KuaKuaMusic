@@ -61,6 +61,18 @@ export function validateCreativeReferences(
   return draft;
 }
 
+export function includeVariableObservationSources(draft) {
+  const sourceObservationIds = [
+    ...new Set([
+      ...draft.sourceObservationIds,
+      ...draft.variables.flatMap((variable) => variable.sourceObservationIds),
+    ]),
+  ];
+  if (sourceObservationIds.length === draft.sourceObservationIds.length)
+    return draft;
+  return { ...draft, sourceObservationIds };
+}
+
 function creativePrompt(song, observation, analysis) {
   return [
     "You are the Creative Pass for MusicLearning2026 v2.",
@@ -94,11 +106,12 @@ export function createCreativePass({
       stage: "creative_blueprint",
       label: "正在把分析转换成可实验的音乐变量",
     });
-    const draft = await provider.generateJson({
+    const generated = await provider.generateJson({
       schemaName: "v2-creative-draft",
       prompt: creativePrompt(song, observation, analysis),
       signal,
     });
+    const draft = includeVariableObservationSources(generated);
     validateCreativeReferences(draft, { observation, analysis });
 
     const blueprint = {

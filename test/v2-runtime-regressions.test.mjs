@@ -10,11 +10,16 @@ import { createDashScopeAudioProvider } from "../server/v2/dashscopeAudioProvide
 import { createSongLibrary, deriveCatalogIdentityKey } from "../server/v2/songLibrary.mjs";
 import { createV2Service } from "../server/v2/v2Service.mjs";
 import { createYouTubeAudioProvider } from "../server/v2/youtubeAudioProvider.mjs";
-import { validateMusicObservation, validateTimedCue } from "../server/v2/observationValidation.mjs";
+import {
+  removeUnsupportedNotableMoments,
+  validateMusicObservation,
+  validateTimedCue,
+} from "../server/v2/observationValidation.mjs";
 import { createV2Preflight } from "../server/v2/preflight.mjs";
 import { resolveProviderPlan } from "../music-learning/v2/providerRegistry.mjs";
 import { chooseAudioSource } from "../music-learning/v2/sourceMatcher.mjs";
 import { createStrudelSeedPass } from "../server/v2/strudelSeedPass.mjs";
+import { createCreativePass } from "../server/v2/creativePass.mjs";
 import { createCriticPass } from "../server/v2/criticPass.mjs";
 import { DASHSCOPE_LISTEN_PROMPT_VERSION } from "../server/v2/dashscopeAudioProvider.mjs";
 import { RESEARCH_PROMPT_VERSION } from "../server/v2/researchPass.mjs";
@@ -136,6 +141,78 @@ test("acquisition rejects missing or invalid probed duration", async (t) => {
   }), { code: "V2_AUDIO_DURATION_INVALID" });
 });
 
+test("YouTube search reads flat results so one unavailable match cannot abort candidate discovery", async () => {
+  const calls = [];
+  const provider = createYouTubeAudioProvider({
+    env: {},
+    runner: async (_binary, args) => {
+      calls.push(args);
+      if (!args.includes("--flat-playlist") || !args.includes("--ignore-errors")) {
+        throw new Error("one search result is unavailable");
+      }
+      return {
+        stdout: JSON.stringify({
+          entries: [{
+            id: "available-result",
+            title: 'Battlefield 4 "Warsaw" Theme',
+            channel: "Rami - Topic",
+            duration: 120,
+          }],
+        }),
+      };
+    },
+  });
+
+  const results = await provider.search(song);
+
+  assert.equal(results.length, 1);
+  assert.equal(results[0].sourceId, "available-result");
+  assert.ok(calls[0].includes("--ignore-errors"));
+});
+
+test("Critic stops before a model call when Listen and Research have no citable evidence", async () => {
+  let calls = 0;
+  const critic = createCriticPass({
+    selection: { provider: "dashscope", model: "qwen3.5-omni-plus" },
+    env,
+    fetcher: async () => { calls++; throw new Error("unexpected model call"); },
+  });
+
+  await assert.rejects(
+    critic.run(song, {
+      observation: null,
+      research: { findings: [], unknowns: ["no sources"] },
+      sources: [],
+    }),
+    { code: "V2_PRIMARY_EVIDENCE_EMPTY" },
+  );
+  assert.equal(calls, 0);
+});
+
+test("unsupported notable moments are dropped without discarding supported audio observations", () => {
+  const document = observation();
+  document.notableMoments.push({
+    id: "unsupported-moment",
+    startSec: 90,
+    endSec: 98,
+    salience: 0.7,
+    title: "缺少覆盖观察",
+    observationIds: ["obs-1"],
+  });
+
+  const sanitized = removeUnsupportedNotableMoments(document, {
+    durationSec: 120,
+  });
+
+  assert.deepEqual(
+    sanitized.notableMoments.map((moment) => moment.id),
+    ["moment-1"],
+  );
+  assert.equal(sanitized.observations.length, 1);
+  assert.match(sanitized.uncertainties.at(-1).text, /忽略 1 条/);
+  assert.equal(validateMusicObservation(sanitized, { durationSec: 120 }), sanitized);
+});
+
 test("parallel Listen and Research saves retain every manifest ID across library instances", async (t) => {
   const root = await tempRoot(t), a = createSongLibrary({ root }), b = createSongLibrary({ root });
   const pkg = await a.ensureSongPackage(song);
@@ -234,6 +311,74 @@ test("Critic repairs only one semantic failure with the original supporting arti
   const result = await pass.run({ ...song, songId: "song-1" }, { observation: observation() });
   assert.equal(prompts.length, 2); assert.match(prompts[1], /Repair this validation error/);
   assert.match(prompts[1], /"obs-1"/); assert.equal(result.modules[0].listeningCues[0].endSec, 80);
+});
+
+test("Critic splits mixed-category modules into evidence-scoped modules and preserves summaries", async () => {
+  let calls = 0;
+  const draft = criticDraft();
+  draft.interpretations.push({
+    id: "int-melody",
+    category: "melody",
+    text: "旋律进入形成对比",
+    observationIds: ["obs-1"],
+    evidenceIds: [],
+    generalPrinciples: [],
+  });
+  draft.modules[0].interpretationIds.push("int-melody");
+  const pass = createCriticPass({
+    selection: { provider: "dashscope", model: "qwen3.5-omni-plus" },
+    env,
+    fetcher: async () => {
+      calls++;
+      return sse(draft);
+    },
+  });
+
+  const result = await pass.run(
+    { ...song, songId: "song-1" },
+    { observation: observation() },
+  );
+
+  assert.equal(calls, 2);
+  assert.deepEqual(
+    result.modules.map((module) => module.category),
+    ["rhythm", "melody"],
+  );
+  assert.ok(result.modules.every((module) => module.interpretationIds.length === 1));
+  assert.equal(result.overallVibe.hook.text, "脉冲加密");
+  assert.equal(result.interpretations.length, 2);
+  assert.match(result.unknowns.at(-1), /跨类别模块已按已审核解释拆分/);
+});
+
+test("Creative includes each variable observation in the blueprint-level source list", async () => {
+  const draft = {
+    ...creativeDraft,
+    sourceInterpretationIds: ["int-1"],
+    variables: [{
+      id: "var-1",
+      type: "rhythmic_density",
+      baseline: "稀疏",
+      variation: "密集",
+      sourceObservationIds: ["obs-1"],
+    }],
+    studioEligible: true,
+  };
+  const pass = createCreativePass({
+    selection: { provider: "dashscope", model: "qwen3.5-omni-plus" },
+    env,
+    fetcher: async () => sse(draft),
+  });
+
+  const blueprint = await pass.run(
+    { ...song, songId: "song-1" },
+    {
+      observation: observation(),
+      analysis: { analysisId: "analysis-1", interpretations: [{ id: "int-1" }] },
+    },
+  );
+
+  assert.deepEqual(blueprint.sourceObservationIds, ["obs-1"]);
+  assert.equal(blueprint.studioEligible, true);
 });
 
 test("cached primary passes still produce independent, traceable Critic and Studio snapshots", async (t) => {

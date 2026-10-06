@@ -81,8 +81,10 @@ export function createYouTubeAudioProvider({
         ytDlp,
         [
           "--dump-single-json",
+          "--flat-playlist",
           "--skip-download",
           "--no-warnings",
+          "--ignore-errors",
           "--playlist-end",
           "10",
           "ytsearch10:" + query,

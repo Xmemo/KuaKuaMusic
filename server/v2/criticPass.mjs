@@ -14,6 +14,18 @@ function sourceEvidenceIds(sources) {
   );
 }
 
+export function hasCriticEvidence(observation, sources = []) {
+  const hasObservation = observation?.observations?.some(
+    (item) => item.id?.trim() && item.statement?.trim(),
+  );
+  const hasSourceExcerpt = (sources || []).some((source) =>
+    source.excerpts?.some(
+      (excerpt) => excerpt.id?.trim() && excerpt.text?.trim(),
+    ),
+  );
+  return Boolean(hasObservation || hasSourceExcerpt);
+}
+
 export function validateCriticReferences(
   draft,
   { observation = null, sources = [] } = {},
@@ -122,6 +134,98 @@ function criticPrompt(song, observation, research, sources) {
   ].join("\n\n");
 }
 
+function normalizeCategoryMismatchedModules(draft, observation) {
+  const interpretations = new Map(
+    draft.interpretations.map((item) => [item.id, item]),
+  );
+  const observations = new Map(
+    (observation?.observations || []).map((item) => [item.id, item]),
+  );
+  const titles = {
+    culture: "文化与背景",
+    rhythm: "节奏与律动",
+    harmony: "和声",
+    melody: "旋律",
+    timbre: "音色",
+    arrangement: "编曲层次",
+    structure: "段落与结构",
+    production: "制作",
+    energy: "能量变化",
+  };
+  const modules = [];
+  const usedIds = new Set();
+  let normalized = 0;
+  const append = (module) => {
+    let id = module.id;
+    let suffix = 2;
+    while (usedIds.has(id)) id = module.id + "-" + suffix++;
+    usedIds.add(id);
+    modules.push({ ...module, id });
+  };
+
+  for (const module of draft.modules) {
+    const groups = new Map();
+    let invalidReference = false;
+    for (const id of module.interpretationIds) {
+      const interpretation = interpretations.get(id);
+      if (!interpretation) {
+        invalidReference = true;
+        continue;
+      }
+      if (!groups.has(interpretation.category))
+        groups.set(interpretation.category, []);
+      groups.get(interpretation.category).push(interpretation);
+    }
+    if (
+      !invalidReference &&
+      groups.size === 1 &&
+      groups.has(module.category)
+    ) {
+      append(module);
+      continue;
+    }
+
+    normalized++;
+    for (const [category, items] of groups) {
+      const listeningCues = [
+        ...new Set(items.flatMap((item) => item.observationIds)),
+      ].flatMap((id) => {
+        const item = observations.get(id);
+        if (!item || item.category !== category) return [];
+        const precise = item.precision === "time_localized";
+        return [{
+          text: "留意：" + item.statement,
+          startSec: precise ? item.startSec : null,
+          endSec: precise ? item.endSec : null,
+          observationIds: [id],
+          evidenceIds: [],
+        }];
+      });
+      append({
+        ...module,
+        id: module.id + "-scoped-" + category,
+        category,
+        title: titles[category] || module.title,
+        summary: items.map((item) => item.text).join("\n\n"),
+        interpretationIds: items.map((item) => item.id),
+        listeningCues,
+        unknowns: [],
+        studioPotential: "none",
+      });
+    }
+  }
+
+  if (!normalized) return draft;
+  return {
+    ...draft,
+    modules,
+    unknowns: [
+      ...draft.unknowns,
+      `${normalized} 个跨类别模块已按已审核解释拆分；模块文字只复用对应解释。`,
+    ],
+  };
+}
+
 export function createCriticPass({
   selection,
   env = process.env,
@@ -139,11 +243,11 @@ export function createCriticPass({
       onProgress,
     } = {},
   ) {
-    if (!observation && !research) {
+    if (!hasCriticEvidence(observation, sources)) {
       throw new AppError(
-        "Critic 至少需要 Listen 或 Research 其中一项。",
-        "V2_ARTIFACT_NOT_READY",
-        409,
+        "Critic 没有可用的听觉观察或已登记资料片段。",
+        "V2_PRIMARY_EVIDENCE_EMPTY",
+        502,
       );
     }
     onProgress?.({
@@ -162,7 +266,18 @@ export function createCriticPass({
       draft = await provider.generateJson({ schemaName: "v2-critic-draft", signal,
         prompt: criticPrompt(song, observation, research, sources) + "\n\nRepair this validation error: " + error.message +
           "\nUse null cue timestamps unless time-localized observations cover the entire cue range. Previous draft:\n" + serialize(draft) });
-      validateCriticReferences(draft, { observation, sources });
+      try {
+        validateCriticReferences(draft, { observation, sources });
+      } catch (repairError) {
+        if (signal?.aborted) throw repairError;
+        const normalized = normalizeCategoryMismatchedModules(
+          draft,
+          observation,
+        );
+        if (normalized === draft) throw repairError;
+        validateCriticReferences(normalized, { observation, sources });
+        draft = normalized;
+      }
     }
 
     const analysis = {

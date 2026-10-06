@@ -13,7 +13,7 @@ import {
 import { runProcess } from "./processRunner.mjs";
 import { createResearchPass, RESEARCH_PROMPT_VERSION } from "./researchPass.mjs";
 import { validateMusicObservation } from "./observationValidation.mjs";
-import { createCriticPass } from "./criticPass.mjs";
+import { createCriticPass, hasCriticEvidence } from "./criticPass.mjs";
 import { createCreativePass } from "./creativePass.mjs";
 import { creativeBlueprintToStrudelPlan } from "./creativeStrudelBridge.mjs";
 import { createStrudelSeedPass } from "./strudelSeedPass.mjs";
@@ -501,10 +501,30 @@ export function createV2Service({
     if (researchResult.status === "rejected")
       warnings.push(warningFrom(researchResult.reason, "research"));
 
-    if (!observation && !researchRecord) {
+    if (!hasCriticEvidence(observation, researchRecord?.sources || [])) {
+      const details = warnings.map(
+        (item) => item.stage + "：" + item.message,
+      );
+      if (!observation && !warnings.some((item) => item.stage === "listen")) {
+        details.push("Listen 未产生可引用的听觉观察。");
+      }
+      if (
+        researchRecord &&
+        !researchRecord.sources?.some((source) =>
+          source.excerpts?.some((excerpt) => excerpt.text?.trim()),
+        )
+      ) {
+        details.push("Research 未登记可引用的资料片段。");
+      } else if (
+        !researchRecord &&
+        !warnings.some((item) => item.stage === "research")
+      ) {
+        details.push("Research 未产生可用结果。");
+      }
       throw new AppError(
-        "Listen 与 Research 都未能完成。" + warnings.map((item) => item.stage + "：" + item.message).join("；"),
-        "V2_PRIMARY_PASSES_FAILED",
+        "没有获得可核验依据，已停止生成歌曲分析。" +
+          (details.length ? " " + details.join("；") : ""),
+        "V2_PRIMARY_EVIDENCE_EMPTY",
         502,
       );
     }
