@@ -141,7 +141,7 @@ test("single agent persists generic runner metadata and requires Listen checkpoi
   assert.equal(result.artifact.agent.runner, "future-omni");
   assert.equal(result.artifact.agent.model, "future-music-model");
   assert.equal(result.artifact.agent.skill.name, "music-analysis");
-  assert.equal(result.artifact.agent.protocolChecks.listenCheckpointExists, true);
+  assert.equal(result.artifact.agent.protocolChecks.listenCheckpointCompleted, true);
   assert.equal(result.artifact.agent.protocolChecks.noMcpDependency, true);
 });
 
