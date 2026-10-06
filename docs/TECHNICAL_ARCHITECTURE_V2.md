@@ -221,10 +221,10 @@ Research Backend 独立配置：
 默认 v2 开发配置：
 
 ```
-Listen    = DashScope / qwen3.5-omni-plus
-Research  = DashScope / qwen3.5-omni-plus + registered-web
-Critic    = DashScope / qwen3.5-omni-plus
-Creative  = DashScope / qwen3.5-omni-plus
+Listen    = DashScope / qwen3.8-omni-flash
+Research  = DashScope / qwen3.8-omni-flash + registered-web
+Critic    = DashScope / qwen3.8-omni-flash
+Creative  = DashScope / qwen3.8-omni-flash
 ```
 
 未来只改配置即可形成：

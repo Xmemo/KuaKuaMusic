@@ -37,14 +37,14 @@ MUSIC_V2_ENABLED=1
 VITE_MUSIC_V2_ENABLED=1
 
 MUSIC_LISTEN_PROVIDER=dashscope
-MUSIC_LISTEN_MODEL=qwen3.5-omni-plus
+MUSIC_LISTEN_MODEL=qwen3.8-omni-flash
 MUSIC_RESEARCH_PROVIDER=dashscope
-MUSIC_RESEARCH_MODEL=qwen3.5-omni-plus
+MUSIC_RESEARCH_MODEL=qwen3.8-omni-flash
 MUSIC_RESEARCH_BACKEND=registered-web
 MUSIC_CRITIC_PROVIDER=dashscope
-MUSIC_CRITIC_MODEL=qwen3.5-omni-plus
+MUSIC_CRITIC_MODEL=qwen3.8-omni-flash
 MUSIC_CREATIVE_PROVIDER=dashscope
-MUSIC_CREATIVE_MODEL=qwen3.5-omni-plus
+MUSIC_CREATIVE_MODEL=qwen3.8-omni-flash
 
 DASHSCOPE_API_KEY=<你的 Key>
 DASHSCOPE_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1

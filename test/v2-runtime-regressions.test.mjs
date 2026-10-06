@@ -21,6 +21,7 @@ import { chooseAudioSource } from "../music-learning/v2/sourceMatcher.mjs";
 import { createStrudelSeedPass } from "../server/v2/strudelSeedPass.mjs";
 import { createCreativePass } from "../server/v2/creativePass.mjs";
 import { createCriticPass } from "../server/v2/criticPass.mjs";
+import { createResearchPass } from "../server/v2/researchPass.mjs";
 import { DASHSCOPE_LISTEN_PROMPT_VERSION } from "../server/v2/dashscopeAudioProvider.mjs";
 import { RESEARCH_PROMPT_VERSION } from "../server/v2/researchPass.mjs";
 
@@ -280,6 +281,24 @@ test("Research cache excludes other catalog versions and older prompts", async (
   assert.equal(await library.findReusableResearch(pkg.song.songId, { ...query, catalogIdentityKey: deriveCatalogIdentityKey({ ...song, album: "Live" }) }), null);
 });
 
+test("Research skips paid synthesis when discovery has no citable source excerpt", async () => {
+  let modelCalls = 0;
+  const pass = createResearchPass({
+    selection: { provider: "dashscope", model: "qwen3.8-omni-flash" },
+    env,
+    fetcher: async () => { modelCalls++; throw new Error("unexpected model call"); },
+    discovery: {
+      discover: async () => ({ sources: [], unknowns: ["找不到可读取的资料页"] }),
+    },
+  });
+  const result = await pass.run({ ...song, songId: "song-1" });
+  assert.equal(modelCalls, 0);
+  assert.equal(result.sources.length, 0);
+  assert.equal(result.artifact.findings.length, 0);
+  assert.match(result.artifact.summary, /没有调用模型/u);
+  assert.ok(result.artifact.unknowns.includes("找不到可读取的资料页"));
+});
+
 test("Listen rejects reversed ranges, out-of-duration ranges, invented IDs and global timestamp support", () => {
   assert.ok(validateMusicObservation(observation()));
   for (const mutate of [
@@ -395,8 +414,8 @@ test("cached primary passes still produce independent, traceable Critic and Stud
     } });
   const media = await service.materialize({ song }), library = createSongLibrary({ root });
   const doc = { ...observation(), songId: media.songId, mediaRevisionId: media.media.mediaRevisionId,
-    provider: { name: "dashscope", model: "qwen3.5-omni-plus", promptVersion: DASHSCOPE_LISTEN_PROMPT_VERSION } };
-  const research = { schemaVersion: "2.0", researchRunId: "research-1", songId: media.songId, createdAt: new Date().toISOString(), provider: { name: "dashscope", model: "qwen3.5-omni-plus" }, backend: "registered-web",
+    provider: { name: "dashscope", model: "qwen3.8-omni-flash", promptVersion: DASHSCOPE_LISTEN_PROMPT_VERSION } };
+  const research = { schemaVersion: "2.0", researchRunId: "research-1", songId: media.songId, createdAt: new Date().toISOString(), provider: { name: "dashscope", model: "qwen3.8-omni-flash" }, backend: "registered-web",
     guidedByObservationIds: [], sourceIds: [], summary: "没有足够外部资料", findings: [], unknowns: ["文化背景待检索"] };
   await Promise.all([library.saveObservation(media.songId, doc), library.saveResearch(media.songId, research, [], { catalogIdentityKey: deriveCatalogIdentityKey(media.song), promptVersion: RESEARCH_PROMPT_VERSION })]);
   const first = await service.analyze({ song }), second = await service.analyze({ song });

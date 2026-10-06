@@ -1,8 +1,8 @@
 const ROLE_DEFAULTS = Object.freeze({
-  listen: { provider: "dashscope", model: "qwen3.5-omni-plus" },
-  research: { provider: "dashscope", model: "qwen3.5-omni-plus" },
-  critic: { provider: "dashscope", model: "qwen3.5-omni-plus" },
-  creative: { provider: "dashscope", model: "qwen3.5-omni-plus" },
+  listen: { provider: "dashscope", model: "qwen3.8-omni-flash" },
+  research: { provider: "dashscope", model: "qwen3.8-omni-flash" },
+  critic: { provider: "dashscope", model: "qwen3.8-omni-flash" },
+  creative: { provider: "dashscope", model: "qwen3.8-omni-flash" },
 });
 
 const BUILTIN_CAPABILITIES = Object.freeze({

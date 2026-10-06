@@ -5,13 +5,14 @@ import {
   resolveProviderPlan,
 } from "../music-learning/v2/providerRegistry.mjs";
 
-test("defaults all four roles to DashScope qwen3.5-omni-plus", () => {
+test("defaults all four roles to DashScope qwen3.8-omni-flash", () => {
   const plan = resolveProviderPlan({});
   assert.equal(plan.listen.provider, "dashscope");
-  assert.equal(plan.listen.model, "qwen3.5-omni-plus");
+  assert.equal(plan.listen.model, "qwen3.8-omni-flash");
   assert.equal(plan.research.backend, "registered-web");
-  assert.equal(plan.critic.model, "qwen3.5-omni-plus");
-  assert.equal(plan.creative.model, "qwen3.5-omni-plus");
+  assert.equal(plan.research.model, "qwen3.8-omni-flash");
+  assert.equal(plan.critic.model, "qwen3.8-omni-flash");
+  assert.equal(plan.creative.model, "qwen3.8-omni-flash");
 });
 
 test("roles can switch providers independently", () => {

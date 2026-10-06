@@ -82,6 +82,39 @@ export function createResearchPass({
       onProgress,
     });
 
+    const hasCitableExcerpt = discovered.sources.some((source) =>
+      source.excerpts?.some((excerpt) => excerpt.text?.trim()),
+    );
+    if (!hasCitableExcerpt) {
+      onProgress?.({
+        stage: targetedQuestions.length ? "targeted_research" : "researching",
+        label: "没有可引用的资料片段，已跳过模型总结",
+      });
+      const artifact = {
+        schemaVersion: "2.0",
+        researchRunId: crypto.randomUUID(),
+        songId: song.songId,
+        createdAt: new Date().toISOString(),
+        provider: {
+          name: selection.provider,
+          model: selection.model,
+        },
+        backend: backendName,
+        guidedByObservationIds: [...guidedByObservationIds],
+        sourceIds: discovered.sources.map((source) => source.id),
+        summary: "本轮没有找到可引用的资料片段，因此没有调用模型生成歌曲背景结论。",
+        findings: [],
+        unknowns: [...new Set([
+          ...discovered.unknowns,
+          "缺少可引用的外部资料片段；歌曲身份、文化背景与制作资料仍待核实。",
+        ])],
+      };
+      return {
+        artifact: validateContract("v2-research-artifact", artifact),
+        sources: discovered.sources,
+      };
+    }
+
     onProgress?.({
       stage: targetedQuestions.length ? "targeted_research" : "researching",
       label: "正在整理已登记的乐评与背景资料",

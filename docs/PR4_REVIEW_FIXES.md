@@ -42,7 +42,9 @@
 - Listen 只剔除没有局部观察支撑的显著时刻；有效观察保留。
 - Critic 跨类别模块现在按通过证据审核的解释拆分，模块只复用相应解释文本；空证据时不再调用 Critic，并向 UI 返回 Listen/Research 失败原因。
 - Creative 自动把变量已经引用的观察 ID 加入 Blueprint 总来源列表，不扩大变量的证据范围。
-- 上述修复已由 TypeScript、生产构建和 **102 项测试**验证。新的在线 Critic/Creative 修复尚未得到真实模型确认：重新运行时，DashScope 返回 `Access denied, please make sure your account is in good standing`，页面链接指向逾期账单错误。官方说明要求在阿里云费用中心核对欠费/余额；若账户无欠费，再核对 API Key 是否属于当前账号。[阿里云错误码说明](https://help.aliyun.com/zh/model-studio/error-code#overdue-payment)
+- 当前四个角色默认切换为 `qwen3.8-omni-flash`。若 Research 没有任何可引用片段，现在直接生成标明缺证据的本地结果，不再为“空资料总结”额外调用付费模型。
+- DashScope 流式请求曾请求返回 usage，但本机流解析器未提取或保存 token 用量。因此历史调用可从 Listen、Research、Analysis artifact 确认模型阶段执行过，不能从本地文件精确还原输入/输出 token 或费用；账单明细以阿里云费用中心为准。
+- 上述修复已由 TypeScript、生产构建和 **103 项测试**验证。新的在线 Critic/Creative 修复尚未得到真实模型确认：重新运行时，DashScope 返回 `Access denied, please make sure your account is in good standing`，页面链接指向逾期账单错误。官方说明要求在阿里云费用中心核对欠费/余额；若账户无欠费，再核对 API Key 是否属于当前账号。[阿里云错误码说明](https://help.aliyun.com/zh/model-studio/error-code#overdue-payment)
 
 **真实内容验收状态：未通过。** 账号恢复后，用缓存的本地音频重新分析即可继续；无需再次下载。届时仍需确认音源版本、Research 是否能登记可读资料、Critic 模块质量和 Studio A/B 是否实际播放。不得据本地自动化测试宣称分析效果达标。
 
