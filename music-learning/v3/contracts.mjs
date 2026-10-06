@@ -163,7 +163,7 @@ export const v3Contracts = {
         toolsUsed: array(string),
         usage,
         protocolChecks: object({
-          listenCheckpointExists: { type: "boolean" },
+          listenCheckpointCompleted: { type: "boolean" },
           noMcpDependency: { type: "boolean" },
         }),
       }),
