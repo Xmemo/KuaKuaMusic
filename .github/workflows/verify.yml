@@ -6,6 +6,7 @@ on:
     branches:
       - main
       - "arch/**"
+      - "workflow/**"
 
 permissions:
   contents: read
@@ -23,4 +24,5 @@ jobs:
       - run: npm ci
       - run: npm run schemas:generate
       - run: git diff --exit-code -- schemas
+      - run: npm run workflow:v4:dsp-selftest
       - run: npm run verify

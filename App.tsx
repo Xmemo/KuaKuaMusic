@@ -559,6 +559,10 @@ function MusicLearningApp() {
     </div>
   );
 }
+const V4App =
+  import.meta.env?.VITE_MUSIC_V4_ENABLED === "1"
+    ? React.lazy(() => import("./V4App"))
+    : null;
 const V3App =
   import.meta.env?.VITE_MUSIC_V3_ENABLED === "1"
     ? React.lazy(() => import("./V3App"))
@@ -572,6 +576,12 @@ const LegacyApp =
     ? React.lazy(() => import("./LegacyApp"))
     : null;
 export default function App() {
+  if (V4App)
+    return (
+      <React.Suspense fallback={<p>正在加载 Antigravity v4</p>}>
+        <V4App />
+      </React.Suspense>
+    );
   if (V3App)
     return (
       <React.Suspense fallback={<p>正在加载 Single-Agent v3</p>}>

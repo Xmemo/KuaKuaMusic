@@ -1,0 +1,314 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MusicLearning Research Workflow v4 DSP Artifact",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "status",
+    "error",
+    "sourceAudio",
+    "analysisPcm",
+    "loudness",
+    "rmsTimeline",
+    "measurements",
+    "changePoints",
+    "methods",
+    "warnings"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "4.0"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "complete",
+        "failed"
+      ]
+    },
+    "error": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "sourceAudio": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "durationSec",
+        "nativeSampleRateHz",
+        "channels"
+      ],
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "durationSec": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "nativeSampleRateHz": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "channels": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        }
+      }
+    },
+    "analysisPcm": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sampleRateHz",
+        "channels",
+        "sampleFormat",
+        "rmsWindowSec"
+      ],
+      "properties": {
+        "sampleRateHz": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "channels": {
+          "const": 1
+        },
+        "sampleFormat": {
+          "const": "f32le"
+        },
+        "rmsWindowSec": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
+      }
+    },
+    "loudness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "integratedLufs",
+        "loudnessRangeLu",
+        "truePeakDbfs",
+        "method"
+      ],
+      "properties": {
+        "integratedLufs": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "loudnessRangeLu": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "truePeakDbfs": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "method": {
+          "type": "string"
+        }
+      }
+    },
+    "rmsTimeline": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "startSec",
+          "endSec",
+          "rmsDbfs"
+        ],
+        "properties": {
+          "startSec": {
+            "type": "number",
+            "minimum": 0
+          },
+          "endSec": {
+            "type": "number",
+            "minimum": 0
+          },
+          "rmsDbfs": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "changePoints": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "atSec",
+          "beforeRmsDbfs",
+          "afterRmsDbfs",
+          "deltaDb",
+          "direction",
+          "contextSec"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "atSec": {
+            "type": "number",
+            "minimum": 0
+          },
+          "beforeRmsDbfs": {
+            "type": "number"
+          },
+          "afterRmsDbfs": {
+            "type": "number"
+          },
+          "deltaDb": {
+            "type": "number"
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "rise",
+              "fall"
+            ]
+          },
+          "contextSec": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          }
+        }
+      }
+    },
+    "methods": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "kind",
+          "method",
+          "parameters",
+          "class"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "method": {
+            "type": "string"
+          },
+          "parameters": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "class": {
+            "type": "string",
+            "enum": [
+              "deterministic_acoustic",
+              "derived_deterministic"
+            ]
+          }
+        }
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "measurements": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "kind",
+          "class",
+          "value",
+          "unit",
+          "methodId",
+          "startSec",
+          "endSec",
+          "notes"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "class": {
+            "type": "string",
+            "enum": [
+              "deterministic_acoustic",
+              "derived_deterministic"
+            ]
+          },
+          "value": {
+            "type": [
+              "number",
+              "string",
+              "null"
+            ]
+          },
+          "unit": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "methodId": {
+            "type": "string"
+          },
+          "startSec": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "endSec": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  }
+}

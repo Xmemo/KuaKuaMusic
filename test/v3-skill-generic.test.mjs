@@ -16,6 +16,7 @@ test("music-analysis skill is not tied to a model, runner, or product runtime", 
     "SiliconFlow",
     "KuaKuaMusic",
     "Strudel",
+    "FFmpeg",
   ]) {
     assert.equal(
       text.includes(forbidden),
@@ -25,8 +26,12 @@ test("music-analysis skill is not tied to a model, runner, or product runtime", 
   }
 
   assert.match(text, /model-agnostic and host-agnostic/i);
-  assert.match(text, /Phase A — Listen first/);
-  assert.match(text, /Phase B — Measure only when useful/);
-  assert.match(text, /Phase C — Research after the listening checkpoint/);
-  assert.match(text, /No MCP server or plugin is required/);
+  assert.match(text, /Four evidence classes/);
+  assert.match(text, /Observation rules/);
+  assert.match(text, /Measurement rules/);
+  assert.match(text, /External evidence rules/);
+  assert.match(text, /Interpretation rules/);
+  assert.match(text, /Minimum-basis policy/);
+  assert.match(text, /global_gain/);
+  assert.match(text, /does not define an execution pipeline/i);
 });

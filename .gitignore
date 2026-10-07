@@ -16,6 +16,8 @@ dist-ssr
 .music-learning/evidence/
 .music-learning/diagnostics/
 .music-learning/library/
+.music-learning/runs/
+.music-learning/session/
 
 # Editor directories and files
 .vscode/*

@@ -1,43 +1,175 @@
 # 夸夸音乐 / MusicLearning2026
 
-**输入歌曲 → 本地录音实体化 → AI 真正听歌/按需测量/查资料 → 有依据的解释 → Strudel 学习实验。**
+**输入歌曲 → 准备正确录音 → AI 直接听歌 + 固定 DSP + 外部考据 → 有依据的音乐解释 → 可选 Strudel 学习实验。**
 
 产品基线仍是 [PRD v0.3 冻结版](docs/MUSICLEARNING2026_PRD_V0.3_FROZEN.md)。
 
-当前新的目标架构是：
+## 当前实验目标：Antigravity-native v4
 
-> **[v3 Single Agent + Generic Music Analysis Skill](docs/TECHNICAL_ARCHITECTURE_V3.md)**
+当前分支把本地 Web 产品壳和 Antigravity-native 分析工作流重新接在一起：浏览器负责用户交互，后台主 Gemini 以 Session Mode 常驻并自动消费网页任务。
 
-v3 从 PR #4 / v2 的稳定成果上继续收敛：保留歌曲搜索、YouTube 预览、本地 Song Package、media revision、缓存和 Strudel 安全层；不再把音乐理解拆成 Listen / Research / Critic / Creative 四个模型 Provider。
+> **[MusicLearning Research Workflow v4 — Antigravity Native](docs/MUSIC_RESEARCH_WORKFLOW_V4.md)**
 
-## v3 核心流水线
+核心结构：
 
 ```
-Search
-  ↓
-Recording Materializer
-  ↓
-Local Song Package
-  ↓
-MusicAnalysisAgent
-  ├─ Generic music-analysis Skill
-  ├─ Listen first
-  ├─ Measure when useful
-  ├─ Research after checkpoint
-  └─ Synthesize
-  ↓
-Unified Analysis Artifact
-  ├─ observation
-  ├─ measurement
-  ├─ externalEvidence
-  └─ interpretation
-  ↓
-optional Creative Experiment
-  ↓
-server-validated Strudel A/B
+                         Main Gemini
+                    Music Analysis Orchestrator
+                              │
+                 invoke_subagent × 3
+                              │
+          ┌───────────────────┼───────────────────┐
+          │                   │                   │
+          ▼                   ▼                   ▼
+  Acoustic Analyst       Music Listener       Music Researcher
+  fixed local DSP        native audio         web evidence
+          │                   │                   │
+          ▼                   ▼                   ▼
+      dsp.json            listen.json         research.json
+          └───────────────────┼───────────────────┘
+                              ▼
+                         Main Gemini
+                           synthesis
+                              │
+                              ▼
+                        analysis.json
+                              │
+                    user selects insight
+                              │
+                              ▼
+                       Music Creative
+                              │
+                              ▼
+                         studio.json
 ```
 
-第一版 Runner 是 **Antigravity CLI**，默认模型配置为 `gemini-3.8-flash-high`。这只是当前实现，不属于 Skill 或 Artifact 的固定假设。
+前三个专业子 Agent 并行执行。
+
+## 为什么从 v3 改成这一版
+
+v3 的 Single Agent 验证了强多模态模型的音乐理解能力，但一个长会话同时：
+
+- 听完整音频；
+- 自己想办法做 DSP；
+- 写 Python；
+- 搜索网页；
+- 综合解释；
+- 生成 Studio；
+
+会导致上下文膨胀、工具循环过长、502 脆弱性以及错误测量方法。
+
+v4 不放弃 Gemini/Antigravity，而是改变**分工方式**：
+
+- **Acoustic Analyst**：只调用审核过的固定 DSP；
+- **Listener**：只直接听录音；
+- **Researcher**：只查外部资料；
+- **Main Gemini**：只编排与综合；
+- **Creative**：用户需要时再生成教学实验。
+
+## 本地浏览器入口：Antigravity Session Mode
+
+v4 现在的主产品路径不是“网页复制 prompt → Agent”，而是：
+
+```
+Antigravity 主 Gemini
+        │
+        ├── 启动 localhost
+        ├── 注册 Session Mode
+        └── 阻塞等待本地 request queue
+                   ▲
+                   │
+       KuaKuaMusic Browser
+                   │
+      网易云 / QQ / 歌名输入
+                   │
+       analysis / creative request
+```
+
+第一次在 Antigravity 中选择：
+
+`music-analysis-orchestrator`
+
+然后让它：
+
+> Start KuaKuaMusic Session Mode.
+
+它会执行：
+
+```bash
+python3 tools/music-workflow/start_session.py
+```
+
+该脚本会自动：
+
+- 启动 `npm run dev`（若尚未启动）；
+- 强制启用 v4 Browser Bridge；
+- 关闭 v2/v3 Beta runtime；
+- 注册 `.music-learning/session/orchestrator.json`。
+
+Antigravity 的 Browser 是官方内置 browser subagent，通过 `/browser` slash command 打开。因此第一次只需要在 Antigravity 中再执行一次：
+
+```
+/browser Open http://127.0.0.1:3000
+```
+
+**之后每首歌不再需要返回 Agent 对话框，也不需要复制任何 prompt。**
+
+浏览器里的流程：
+
+```
+粘贴网易云 / QQ / 歌名
+        ↓
+歌曲身份解析
+        ↓
+YouTube 录音候选确认
+        ↓
+本地下载 / Song Package 复用
+        ↓
+analysis request → queued
+        ↓
+后台 Orchestrator 自动 claim
+        ↓
+DSP / Listener / Researcher 并行
+        ↓
+analysis.json
+        ↓
+浏览器自动更新分析结果
+        ↓
+「在 Studio 里试试」
+        ↓
+creative request → queued
+        ↓
+music-creative
+        ↓
+studio.json + Strudel A/B
+```
+
+网页会常驻显示后台 Gemini 状态：
+
+- **在线等待**
+- **正在分析**
+- **正在创建 Studio**
+- **未连接**
+
+即使后台 Session 暂时离线，网页提交的任务也会保留在本地队列；Session 恢复后自动处理。
+
+本地通信通过：
+
+```
+.music-learning/session/orchestrator.json
+.music-learning/runs/<run>/browser-request.json
+.music-learning/runs/<run>/browser-creative-request.json
+```
+
+实现。
+
+这里没有：
+
+- Node → `spawn agy`
+- 每首歌的 prompt copy/paste
+- 网页直接调用模型 API
+
+浏览器只是控制面板；Antigravity 主 Gemini 是常驻工作进程。
 
 ## 通用 Music Analysis Skill
 
@@ -47,191 +179,248 @@ Canonical Skill：
 .agents/skills/music-analysis/SKILL.md
 ```
 
-它只定义音乐分析方法论，不出现：
+它现在只定义通用认识论：
 
-- Gemini / Antigravity
-- Qwen / DashScope / SiliconFlow
-- KuaKuaMusic UI
-- Strudel
+- observation；
+- measurement；
+- external evidence；
+- interpretation；
+- minimum claim basis；
+- uncertainty。
 
-因此未来替换为其他支持音频、工具和搜索的多模态 Agent 时，Skill 无需重写。
+它不定义：
 
-核心规则：
+- Gemini / Antigravity；
+- FFmpeg；
+- 子 Agent 拓扑；
+- KuaKuaMusic UI；
+- Strudel。
 
-- **先听后搜**；
-- 精确数值必须来自真正执行的 measurement；
-- DSP/算法结果仍然是 estimator，不允许写成“100% 真相”；
-- 搜索 snippet 不算证据；
-- observation / measurement / external_evidence / interpretation 分开；
-- 不依赖 MCP；
-- 不强制每首歌跑固定 DSP checklist。
+因此未来即使换多模态模型或运行宿主，核心 Skill 仍可复用。
 
-## v3 Runner Boundary
-
-业务层只依赖一个很薄的 Runner 接口。
-
-当前：
+## Antigravity Custom Agents
 
 ```
-MUSIC_ANALYSIS_RUNNER=antigravity-cli
-MUSIC_ANALYSIS_MODEL=gemini-3.8-flash-high
-MUSIC_ANALYSIS_EFFORT=high
+.agents/agents/
+├── music-analysis-orchestrator/
+├── music-acoustic-analyst/
+├── music-listener/
+├── music-researcher/
+└── music-creative/
 ```
 
-Antigravity 专用逻辑只在：
+### Orchestrator
 
-```
-server/v3/antigravityRunner.mjs
-```
+主 Agent。创建 run，一次并行启动 Acoustic / Listener / Researcher，最后综合。
 
-负责：
+### Acoustic Analyst
 
-- workspace Skill 映射；
-- headless CLI；
-- structured output；
-- stream-json/tool telemetry；
-- sandbox / permissions；
-- usage / conversation metadata。
+只能调用：
 
-未来添加第二个 Runner 不需要修改 Skill、v3 Schema 或 Song Package。
+`tools/music-dsp/audio_metrics.py`
 
-## 本地 Song Package
+禁止现场重新发明 DSP。
 
-v3 继续复用 v2 已验证的录音准备层：
+### Listener
 
-```
-.music-learning/library/<song-id>/
-├── identity.json
-├── media/
-│   └── <media-revision-id>/
-│       ├── acquisition.json
-│       ├── source.*
-│       └── analysis.mp3
-└── agent-runs/
-    └── <analysis-id>/
-        ├── input/audio.mp3
-        ├── skill/SKILL.md
-        ├── work/
-        ├── measurements/
-        ├── task.json
-        ├── output.schema.json
-        ├── phase-a-observation.json
-        └── analysis.json
-```
+直接分析音频。
 
-录音和分析工作区均不提交 Git。
+没有 Web / shell / Python 权限，也不读取 DSP/Research artifact。
 
-## v3 本机运行
+### Researcher
 
-需要：
+只读取任务身份信息并使用 Web Search / URL reading。
 
-- Node.js 22+
-- `yt-dlp`
-- `ffmpeg`
-- `ffprobe`
-- 当前选择的 Agent Runner
+不读取音频，也不读取 Listen/DSP artifact。
 
-第一版 Runner：
+### Creative
+
+只在用户明确要求“让我听听这个机制”时调用。
+
+默认分析流程不生成 Strudel。
+
+## Deterministic DSP P0
+
+固定工具：
+
+`tools/music-dsp/audio_metrics.py`
+
+依赖：
+
+- Python 3 标准库；
+- ffmpeg；
+- ffprobe。
+
+当前只做：
+
+- duration / native audio metadata；
+- Integrated LUFS；
+- Loudness Range；
+- True Peak；
+- decoded PCM fixed-window RMS dBFS；
+- RMS step-change candidates。
+
+**P0 不做 BPM / key / chords / form。**
+
+这些属于 estimator，不是确定性物理量，后续必须经过独立算法选择与 benchmark 才能加入。
+
+### 关键方法论边界
+
+RMS 基于 FFmpeg 解码后的 PCM。
+
+禁止使用 MP3 frame metadata、bitrate、quantizer、`global_gain` 等压缩编码字段推断波形响度或能量。
+
+## 本地 run workspace
+
+创建：
 
 ```bash
-agy --version
-agy models
+python3 tools/music-workflow/create_run.py \
+  --audio "/path/to/Artist - Track.mp3"
 ```
 
-并确保 Antigravity CLI 已完成本机登录。
+生成：
 
-启用：
+```
+.music-learning/runs/<run-id>/
+├── input.mp3
+├── task.json
+├── dsp.json
+├── listen.json
+├── research.json
+├── analysis.json
+└── studio.json
+```
+
+`studio.json` 仅按需存在。
+
+所有 run 目录均已加入 `.gitignore`。
+
+## Artifact Contracts
+
+```
+schemas/workflow-v4/
+├── dsp.schema.json
+├── listen.schema.json
+├── research.schema.json
+├── analysis.schema.json
+└── studio.schema.json
+```
+
+最终 `analysis.json` 的 interpretation 显式引用：
+
+- Listen observation IDs；
+- DSP measurement IDs；
+- Research finding IDs。
+
+Research finding 再引用具体 source IDs。
+
+## Validation
+
+独立 artifact：
 
 ```bash
-MUSIC_V3_ENABLED=1
-VITE_MUSIC_V3_ENABLED=1
-
-MUSIC_ANALYSIS_RUNNER=antigravity-cli
-MUSIC_ANALYSIS_CLI_BIN=agy
-MUSIC_ANALYSIS_MODEL=gemini-3.8-flash-high
-MUSIC_ANALYSIS_EFFORT=high
+node tools/music-workflow/validate_artifact.mjs \
+  --kind listen \
+  --file "<run>/listen.json"
 ```
 
-然后：
+最终跨 artifact 校验：
+
+```bash
+node tools/music-workflow/validate_artifact.mjs \
+  --kind analysis \
+  --file "<run>/analysis.json" \
+  --run-dir "<run>"
+```
+
+Studio 还会继续调用现有 Strudel runtime policy。
+
+## 在 Antigravity 里怎么用
+
+1. 打开本仓库；
+2. 在 Custom Agents 中选择 `music-analysis-orchestrator`；
+3. 选择你要 benchmark 的 Gemini/model configuration；
+4. 对主 Agent 说一次：
+
+> Start KuaKuaMusic Session Mode.
+
+5. 按 Agent 提示，在 Antigravity 中执行：
+
+`/browser Open http://127.0.0.1:3000`
+
+此后：
+
+> **粘贴网易云 → 选录音 → 看分析 → 点 Studio**
+
+全部在这个 Browser 页面里完成。
+
+主 Agent会循环：
+
+```
+session_bus wait
+    ↓
+claim request
+    ↓
+process
+    ↓
+complete request
+    ↓
+session_bus wait
+```
+
+直到你明确要求它停止 Session Mode。
+
+所有专业子 Agent 都是：
+
+`model: inherit`
+
+因此跟随主 Agent 当前的模型配置。
+
+完整验收见：
+
+> [LOCAL_V4_ACCEPTANCE.md](docs/LOCAL_V4_ACCEPTANCE.md)
+
+## Verification
 
 ```bash
 npm ci
-npm run dev
-```
-
-打开：
-
-```
-http://127.0.0.1:3000
-```
-
-页面应显示 **Single-Agent v3 Beta**。
-
-## v3 本机 API
-
-设置 `MUSIC_V3_ENABLED=1` 后：
-
-| 接口 | 用途 |
-| --- | --- |
-| `POST /api/agent/v3/analyze` | 录音确认/复用 → 单 Agent 完整音乐调查 → Artifact → optional Studio |
-| `POST /api/agent/v3/materialize` | 只准备或确认本地录音 |
-| `GET /api/agent/v3/runner` | 查看当前架构/Skill 标识 |
-
-默认 v1/v2 路由仍然保留。
-
-## Server-side Validation
-
-大模型负责调查与解释，但不是最后的真相裁判。
-
-服务端继续检查：
-
-- Schema；
-- observation / measurement / evidence / interpretation ID 引用；
-- 时间范围是否超出真实录音；
-- measurement artifactPath 是否真实存在且没有越过工作区；
-- external evidence URL；
-- Listen checkpoint 是否存在；
-- 是否意外使用 MCP；
-- Strudel 代码安全；
-- A/B 是否只有格式差异。
-
-## v1 / v2 状态
-
-### v1.2
-
-仍保留现有 evidence-first 默认路径与历史数据。
-
-### v2
-
-[TECHNICAL_ARCHITECTURE_V2.md](docs/TECHNICAL_ARCHITECTURE_V2.md) 继续保留，作为：
-
-- Audio-first 多 Provider 架构实验；
-- Song Package / YouTube / Qwen Omni / Research / Critic / Creative 的工程验证；
-- v3 的重要前置探索。
-
-v3 真实音乐质量通过验收前，不删除 v2 代码。
-
-## 验证
-
-```bash
-npm run schemas:generate
+npm run workflow:v4:dsp-selftest
 npm run verify
 ```
 
-CI 会额外检查 generated schema 是否和 contracts 漂移。
+CI 额外检查：
 
-代码回归只能证明协议和边界；不能证明一个模型真的“懂音乐”。v3 最终 Gate 是用真实录音进行内容质量 benchmark。
+- DSP pure self-test；
+- Agent 工具隔离；
+- Skill 不被宿主/模型污染；
+- artifact schema；
+- cross-artifact provenance；
+- timestamp bounds；
+- unsafe Strudel rejection。
 
-首轮建议：
+## Benchmark Gate
 
-- **VARLAN — Antagonistic**
-- **Battlefield 4 — Warsaw Theme**
+在重新封装回 Web App 前，至少验证：
 
-重点比较：
+1. **VARLAN — Antagonistic**
+2. **Battlefield 4 — Warsaw Theme**
 
-- 秒级 observation；
-- Agent 是否只在值得的时候跑 DSP；
-- measurement 是否真正有计算依据；
-- external research 是否足够扎实；
-- 最终解释是否比 v2 更自然、更有音乐洞察；
-- Creative Experiment 是否真的对应前面的机制。
+关注：
+
+- 三个 specialist 是否真正并行；
+- 总耗时与 token/tool 行为；
+- Listen 是否歌曲特异；
+- DSP 是否物理可信；
+- Research 是否保守且扎实；
+- final synthesis 是否自然；
+- failed Research 是否可单独重跑；
+- on-demand Studio 是否真正对应前面解释。
+
+## 历史架构
+
+- [v3 Single Agent + Generic Skill](docs/TECHNICAL_ARCHITECTURE_V3.md)：验证了强多模态模型的音乐理解与通用 Skill，但长程工具 Agent 成本/稳定性较差。
+- [v2 Audio-first Multi-provider](docs/TECHNICAL_ARCHITECTURE_V2.md)：验证了 Local Song Package、Qwen Omni、Research/Critic/Creative 分层与 Strudel bridge。
+- v1.2：保留早期 evidence-first Web App 基线与历史数据。
+
+当前 v4 分支不删除这些实现；先验证研究工作流，再决定哪些代码值得重新产品化。
