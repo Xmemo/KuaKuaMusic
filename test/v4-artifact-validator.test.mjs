@@ -207,6 +207,12 @@ function artifacts() {
     code: 's("bd ~ sd ~")',
     alternativeCode: 'stack(s("bd ~ sd ~"), s("hh*4").gain(0.3))',
     visualHints: ["punchcard"],
+    playback: {
+      bpm: 120,
+      beatsPerCycle: 4,
+      soundBank: "kua-synth-v1",
+      runtimeVersion: "core-1.2.6/webaudio-1.3.0",
+    },
   };
 
   return { dsp, listen, research, analysis, studio };
