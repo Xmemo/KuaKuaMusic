@@ -6,7 +6,7 @@
 
 ## 当前实验目标：Antigravity-native v4
 
-当前分支不继续把音乐分析封装进 Web App runtime，而是先直接在 Antigravity 里验证研究工作流：
+当前分支把本地 Web 产品壳和 Antigravity-native 分析工作流重新接在一起：浏览器负责用户交互，后台主 Gemini 以 Session Mode 常驻并自动消费网页任务。
 
 > **[MusicLearning Research Workflow v4 — Antigravity Native](docs/MUSIC_RESEARCH_WORKFLOW_V4.md)**
 
@@ -66,39 +66,58 @@ v4 不放弃 Gemini/Antigravity，而是改变**分工方式**：
 - **Main Gemini**：只编排与综合；
 - **Creative**：用户需要时再生成教学实验。
 
-## 本地浏览器入口（v4 Browser Bridge）
+## 本地浏览器入口：Antigravity Session Mode
 
-v4 现在重新接回了本地产品壳。
+v4 现在的主产品路径不是“网页复制 prompt → Agent”，而是：
 
-启用：
+```
+Antigravity 主 Gemini
+        │
+        ├── 启动 localhost
+        ├── 注册 Session Mode
+        └── 阻塞等待本地 request queue
+                   ▲
+                   │
+       KuaKuaMusic Browser
+                   │
+      网易云 / QQ / 歌名输入
+                   │
+       analysis / creative request
+```
+
+第一次在 Antigravity 中选择：
+
+`music-analysis-orchestrator`
+
+然后让它：
+
+> Start KuaKuaMusic Session Mode.
+
+它会执行：
 
 ```bash
-MUSIC_V4_BRIDGE_ENABLED=1
-VITE_MUSIC_V4_ENABLED=1
-
-# 建议同时关闭旧 Beta UI
-MUSIC_V3_ENABLED=0
-VITE_MUSIC_V3_ENABLED=0
-MUSIC_V2_ENABLED=0
-VITE_MUSIC_V2_ENABLED=0
+python3 tools/music-workflow/start_session.py
 ```
 
-然后：
+该脚本会自动：
 
-```bash
-npm run dev
-```
+- 启动 `npm run dev`（若尚未启动）；
+- 强制启用 v4 Browser Bridge；
+- 关闭 v2/v3 Beta runtime；
+- 注册 `.music-learning/session/orchestrator.json`。
 
-打开：
-
-```
-http://127.0.0.1:3000
-```
-
-现在浏览器可以完成：
+Antigravity 的 Browser 是官方内置 browser subagent，通过 `/browser` slash command 打开。因此第一次只需要在 Antigravity 中再执行一次：
 
 ```
-网易云 / QQ / 歌名
+/browser Open http://127.0.0.1:3000
+```
+
+**之后每首歌不再需要返回 Agent 对话框，也不需要复制任何 prompt。**
+
+浏览器里的流程：
+
+```
+粘贴网易云 / QQ / 歌名
         ↓
 歌曲身份解析
         ↓
@@ -106,43 +125,51 @@ YouTube 录音候选确认
         ↓
 本地下载 / Song Package 复用
         ↓
-创建 v4 run
+analysis request → queued
         ↓
-复制 Antigravity Orchestrator 指令
+后台 Orchestrator 自动 claim
         ↓
-浏览器自动轮询 dsp/listen/research/analysis.json
+DSP / Listener / Researcher 并行
         ↓
-展示分析拆解
+analysis.json
+        ↓
+浏览器自动更新分析结果
         ↓
 「在 Studio 里试试」
         ↓
-复制 Creative 指令
+creative request → queued
         ↓
-自动读取 studio.json + Strudel A/B
+music-creative
+        ↓
+studio.json + Strudel A/B
 ```
 
-### 为什么仍有一次 Antigravity handoff
+网页会常驻显示后台 Gemini 状态：
 
-当前公开的 Antigravity Desktop/Remote Control 能启动和监控 Agent，但没有公开的本地 HTTP 接口允许 KuaKuaMusic 网页把 prompt 直接注入当前 Desktop 会话。
+- **在线等待**
+- **正在分析**
+- **正在创建 Studio**
+- **未连接**
 
-因此 Browser Bridge **不会偷偷恢复 `agy CLI` subprocess**。
+即使后台 Session 暂时离线，网页提交的任务也会保留在本地队列；Session 恢复后自动处理。
 
-网页负责：
+本地通信通过：
 
-- 网易云等入口；
-- 录音物化；
-- run 创建；
-- artifact 轮询；
-- 分析与 Studio 展示。
+```
+.music-learning/session/orchestrator.json
+.music-learning/runs/<run>/browser-request.json
+.music-learning/runs/<run>/browser-creative-request.json
+```
 
-Antigravity Desktop 负责：
+实现。
 
-- Main Orchestrator；
-- 三个并行 specialist subagents；
-- synthesis；
-- on-demand Creative。
+这里没有：
 
-这样保留了产品体验，同时维持当前“不再用 Node 调 agy CLI”的架构边界。
+- Node → `spawn agy`
+- 每首歌的 prompt copy/paste
+- 网页直接调用模型 API
+
+浏览器只是控制面板；Antigravity 主 Gemini 是常驻工作进程。
 
 ## 通用 Music Analysis Skill
 
@@ -313,12 +340,38 @@ Studio 还会继续调用现有 Strudel runtime policy。
 
 1. 打开本仓库；
 2. 在 Custom Agents 中选择 `music-analysis-orchestrator`；
-3. 在主 Agent 中选择你想 benchmark 的 Gemini/model configuration；
-4. 输入例如：
+3. 选择你要 benchmark 的 Gemini/model configuration；
+4. 对主 Agent 说一次：
 
-> Analyze `/Users/.../VARLAN - Antagonistic.mp3` using MusicLearning Research Workflow v4. The identity is VARLAN — Antagonistic. Stop after analysis.json.
+> Start KuaKuaMusic Session Mode.
 
-所有专业子 Agent 均为：
+5. 按 Agent 提示，在 Antigravity 中执行：
+
+`/browser Open http://127.0.0.1:3000`
+
+此后：
+
+> **粘贴网易云 → 选录音 → 看分析 → 点 Studio**
+
+全部在这个 Browser 页面里完成。
+
+主 Agent会循环：
+
+```
+session_bus wait
+    ↓
+claim request
+    ↓
+process
+    ↓
+complete request
+    ↓
+session_bus wait
+```
+
+直到你明确要求它停止 Session Mode。
+
+所有专业子 Agent 都是：
 
 `model: inherit`
 
