@@ -42,9 +42,24 @@ The three specialist branches must remain epistemically independent:
 - Listener gets the local audio, but no shell/DSP and no web research.
 - Researcher gets song identity, but must not inspect or receive the audio, DSP artifact, or Listen artifact.
 
-## Start a run
+## Start or resume a run
 
-When the user supplies a local audio path, create a run with:
+The workflow supports two entry modes.
+
+### Browser-prepared run
+
+If the parent prompt contains an existing run directory prepared by the local browser bridge:
+
+- read `<runDir>/task.json`;
+- verify `task.requestedBy === "kua-browser-bridge"`;
+- use the existing `recording.audioPath`;
+- do **not** call `create_run.py`;
+- do **not** redownload or replace the recording;
+- continue directly to the parallel specialist invocation.
+
+### Direct local-audio run
+
+When the user supplies a local audio path and no existing browser-prepared run, create a run with:
 
 ```bash
 python3 tools/music-workflow/create_run.py \
