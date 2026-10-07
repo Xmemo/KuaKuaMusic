@@ -22,6 +22,15 @@ v4 keeps Gemini/Antigravity as the research environment but changes the work dec
 ## 2. Core architecture
 
 ```
+             Antigravity Browser
+          KuaKuaMusic localhost UI
+                     │
+         analysis / creative request
+                     │
+                     ▼
+           local filesystem queue
+                     │
+                     ▼
                          Main Gemini
                     Music Analysis Orchestrator
                               │
@@ -52,7 +61,9 @@ v4 keeps Gemini/Antigravity as the research environment but changes the work dec
                          studio.json
 ```
 
-The first three branches are launched concurrently.
+The first three specialist branches are launched concurrently.
+
+The Main Gemini is a persistent session worker: after one request finishes, it returns to the local queue and waits for the next browser action.
 
 ## 3. Why subagents
 
@@ -360,17 +371,29 @@ This keeps code generation out of the default critical path.
 
 ## 14. Expected interaction
 
-Inside Antigravity:
+Inside Antigravity, once per working session:
 
-1. select the `music-analysis-orchestrator` custom Agent;
+1. select `music-analysis-orchestrator`;
 2. choose the desired parent model/reasoning configuration;
-3. ask:
+3. say: `Start KuaKuaMusic Session Mode.`;
+4. the Agent runs `python3 tools/music-workflow/start_session.py`;
+5. open the local product once with:
 
-> Analyze `/Users/.../VARLAN - Antagonistic.mp3` using the MusicLearning workflow.
+```
+/browser Open http://127.0.0.1:3000
+```
 
-The main Agent creates the run and delegates.
+After that, normal use happens entirely in the browser:
 
-Because all custom subagents use `model: inherit`, they follow the parent Agent's selected model tier/configuration.
+- paste NetEase/QQ links;
+- confirm the recording;
+- wait for the parallel analysis;
+- inspect results;
+- request Studio experiments.
+
+The browser writes queued request files. The Orchestrator blocks on `session_bus.py wait`, processes one request, marks it complete, and waits again.
+
+No per-song prompt handoff is part of the product flow.
 
 ## 15. Benchmark before Web integration
 
