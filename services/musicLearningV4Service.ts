@@ -1,6 +1,6 @@
 import type { SongMetadata } from "../types";
 import type { ScoredAudioSourceCandidate } from "../music-learning/v2/types";
-import type { V4RunStatus } from "../music-learning/v4/types";
+import type { V4RunStatus, V4SessionStatus } from "../music-learning/v4/types";
 
 const BASE = (import.meta.env?.VITE_BACKEND_API_BASE_URL || "").replace(
   /\/$/,
@@ -41,7 +41,7 @@ export type V4PrepareResponse =
       candidates: ScoredAudioSourceCandidate[];
     }
   | {
-      status: "run_ready";
+      status: "run_queued";
       reused: boolean;
       songId: string;
       song: SongMetadata & { songId: string };
@@ -51,7 +51,8 @@ export type V4PrepareResponse =
       };
       runId: string;
       runDir: string;
-      antigravityPrompt: string;
+      requestId: string;
+      session: V4SessionStatus;
     };
 
 async function postWithSse<T>(
@@ -164,11 +165,12 @@ export async function requestV4Creative(
   interpretationId: string,
   retry = true,
 ): Promise<{
-  status: "creative_ready";
+  status: "creative_queued";
   runId: string;
   runDir: string;
   interpretationId: string;
-  antigravityPrompt: string;
+  requestId: string;
+  session: V4SessionStatus;
 }> {
   const token = await getSession();
   const response = await fetch(
@@ -194,4 +196,23 @@ export async function requestV4Creative(
   if (!response.ok)
     throw new Error(payload?.error || "无法准备 Studio 创作任务。");
   return payload;
+}
+
+
+export async function getV4SessionStatus(
+  retry = true,
+): Promise<V4SessionStatus> {
+  const token = await getSession();
+  const response = await fetch(BASE + "/api/agent/v4/session", {
+    cache: "no-store",
+    headers: { "X-Music-Learning-Token": token },
+  });
+  if (response.status === 401 && retry) {
+    session = null;
+    return getV4SessionStatus(false);
+  }
+  const payload = await response.json().catch(() => null);
+  if (!response.ok)
+    throw new Error(payload?.error || "无法读取后台 Gemini 会话状态。");
+  return payload as V4SessionStatus;
 }
