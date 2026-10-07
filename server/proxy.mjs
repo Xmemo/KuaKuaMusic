@@ -137,6 +137,12 @@ export function createApp({
       }
     });
   if (v4) {
+    app.get(
+      "/api/agent/v4/session",
+      route(async (_req, res) =>
+        res.json(await v4.sessionStatus()),
+      ),
+    );
     app.post(
       "/api/agent/v4/prepare",
       researchRoute(async (body, context) =>
