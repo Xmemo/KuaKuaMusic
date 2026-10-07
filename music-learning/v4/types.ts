@@ -241,7 +241,11 @@ export interface V4RunStatus {
       durationSec: number;
     };
   };
-  antigravityPrompt: string;
+  session: V4SessionStatus;
+  requests: {
+    analysis: V4QueuedRequest | null;
+    creative: V4QueuedRequest | null;
+  };
   summary: Record<
     "dsp" | "listen" | "research" | "analysis" | "studio",
     {
@@ -257,4 +261,32 @@ export interface V4RunStatus {
     analysis: V4ArtifactRecord<V4AnalysisArtifact>;
     studio: V4ArtifactRecord<V4StudioArtifact>;
   };
+}
+
+
+export interface V4SessionStatus {
+  status: "offline" | "waiting" | "processing" | "stopped";
+  online: boolean;
+  sessionId: string | null;
+  startedAt: string | null;
+  updatedAt: string | null;
+  activeRequestId: string | null;
+  activeRunId: string | null;
+  activeKind: "analysis" | "creative" | null;
+  lastError: string | null;
+}
+
+export interface V4QueuedRequest {
+  schemaVersion: "4.0";
+  requestId: string;
+  kind: "analysis" | "creative";
+  runId: string;
+  status: "queued" | "claimed" | "completed" | "failed";
+  interpretationId: string | null;
+  queuedAt: string;
+  createdAt: string;
+  claimedAt: string | null;
+  claimedBySessionId: string | null;
+  completedAt: string | null;
+  error: string | null;
 }
