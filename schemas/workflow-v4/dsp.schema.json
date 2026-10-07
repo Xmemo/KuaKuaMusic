@@ -11,6 +11,7 @@
     "analysisPcm",
     "loudness",
     "rmsTimeline",
+    "measurements",
     "changePoints",
     "methods",
     "warnings"
@@ -238,6 +239,75 @@
       "type": "array",
       "items": {
         "type": "string"
+      }
+    },
+    "measurements": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "kind",
+          "class",
+          "value",
+          "unit",
+          "methodId",
+          "startSec",
+          "endSec",
+          "notes"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "class": {
+            "type": "string",
+            "enum": [
+              "deterministic_acoustic",
+              "derived_deterministic"
+            ]
+          },
+          "value": {
+            "type": [
+              "number",
+              "string",
+              "null"
+            ]
+          },
+          "unit": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "methodId": {
+            "type": "string"
+          },
+          "startSec": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "endSec": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
       }
     }
   }
