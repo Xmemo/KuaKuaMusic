@@ -2,16 +2,13 @@
 
 ## Objective
 
-Validate the workflow **inside Antigravity**, not through the KuaKuaMusic Web App.
+Validate the **browser-driven Antigravity Session Mode**.
 
-The critical questions are:
+The main product experience should be:
 
-1. do the three specialists actually run concurrently;
-2. does the Listener directly understand the local recording;
-3. does the Acoustic Analyst only use the reviewed DSP script;
-4. does Research remain independent from Listen;
-5. does the final synthesis preserve provenance;
-6. does a failed optional branch avoid destroying successful work.
+> start the Orchestrator once → open KuaKuaMusic in Antigravity Browser once → all subsequent song and Studio actions happen only in the browser.
+
+No per-song prompt copy/paste is part of this acceptance.
 
 ## 1. Branch
 
@@ -28,11 +25,6 @@ npm ci
 python3 --version
 ffmpeg -version
 ffprobe -version
-```
-
-Then:
-
-```bash
 python3 tools/music-dsp/audio_metrics.py --self-test
 ```
 
@@ -42,9 +34,11 @@ Expected:
 audio_metrics self-test: ok
 ```
 
-## 3. Open the repository in Antigravity
+## 3. Start Antigravity Session Mode once
 
-Confirm that Custom Agents include:
+Open the repository in Antigravity.
+
+Confirm these Custom Agents exist:
 
 - music-analysis-orchestrator
 - music-acoustic-analyst
@@ -52,90 +46,100 @@ Confirm that Custom Agents include:
 - music-researcher
 - music-creative
 
-Confirm that the `music-analysis` Skill is visible.
-
 Select `music-analysis-orchestrator` as the primary Agent.
 
-Use the Gemini/model configuration you want to benchmark in the Antigravity UI. The specialist Agents use `model: inherit`.
+Choose the Gemini/model configuration you want to benchmark. Specialist Agents use `model: inherit`.
 
-## 3A. 首选：浏览器 / 网易云入口
+Tell the main Agent once:
 
-在 `.env.local` 中：
+> Start KuaKuaMusic Session Mode.
 
-```bash
-MUSIC_V4_BRIDGE_ENABLED=1
-VITE_MUSIC_V4_ENABLED=1
-
-MUSIC_V3_ENABLED=0
-VITE_MUSIC_V3_ENABLED=0
-MUSIC_V2_ENABLED=0
-VITE_MUSIC_V2_ENABLED=0
-```
-
-启动：
+It should execute:
 
 ```bash
-npm run dev
+python3 tools/music-workflow/start_session.py
 ```
 
-打开：
+Expected output includes:
+
+- `status: ready`
+- `browserUrl: http://127.0.0.1:3000`
+- registered session state.
+
+Then, still inside Antigravity, open the built-in browser once:
 
 ```
-http://127.0.0.1:3000
+/browser Open http://127.0.0.1:3000
 ```
 
-首选验收流程：
+The main Orchestrator should now block on:
 
-1. 粘贴网易云分享链接；
-2. 确认页面识别出正确歌名/艺人；
-3. 选择或确认 YouTube 录音版本；
-4. 页面显示 `Antigravity Handoff` 和 run ID；
-5. 点击“复制 Antigravity 分析指令”；
-6. 切到已经选择 `music-analysis-orchestrator` 的 Antigravity 会话并粘贴执行；
-7. 回到浏览器，不刷新页面；
-8. 确认 DSP / Listen / Research / Analysis 状态自动更新；
-9. `analysis.json` 完成后，页面自动出现分析模块；
-10. 点击推荐分析点的“在 Studio 里试试这个机制”；
-11. 粘贴新的 Creative 指令到 Antigravity；
-12. `studio.json` 完成后，浏览器自动出现 Strudel A/B 播放器。
+```bash
+python3 tools/music-workflow/session_bus.py wait --timeout 300
+```
 
-浏览器不能通过未公开接口把 prompt 直接注入 Antigravity Desktop，因此当前明确保留一次 copy/paste handoff；它不会在后台重新调用 `agy CLI`。
+If idle, it should call `wait` again rather than end the session.
 
-## 3B. 调试入口：直接本地 MP3
+## 4. Browser session indicator
 
-如果要绕开 Browser Bridge 调试 Agent 本身，可以继续直接使用本地音频路径。
+At the top of KuaKuaMusic, verify the badge changes to:
 
-## 4. First benchmark
+> 后台 Gemini 在线等待
+
+The page should not show:
+
+- “复制 Antigravity 指令”
+- a handoff textarea
+- any requirement to return to the Agent chat for each song.
+
+If the Orchestrator is stopped, the page should show:
+
+> 后台 Gemini 未连接
+
+Submitting a song while offline should still queue the task locally.
+
+## 5. First benchmark — NetEase/browser path
 
 Use:
 
-`VARLAN - Antagonistic.mp3`
+**VARLAN — Antagonistic**
 
-Direct-debug prompt:
+Prefer a NetEase share link if available.
 
-> Analyze this recording with the MusicLearning Research Workflow v4: `/absolute/path/VARLAN - Antagonistic.mp3`. The identity is VARLAN — Antagonistic. Run the three specialist branches concurrently and stop after analysis.json; do not generate Studio yet.
+In the browser only:
 
-For the product-path acceptance, prefer the browser/NetEase flow in 3A.
+1. paste the NetEase link;
+2. confirm correct song identity;
+3. confirm the YouTube/local recording candidate;
+4. submit the recording.
 
-## 5. Concurrency check
+Expected:
 
-Open the Agents panel immediately after delegation.
+- a v4 run is created;
+- `browser-request.json` has `status: queued`;
+- the background Orchestrator claims it automatically;
+- the page moves from “已排队” to “Gemini 已接单”;
+- you do not paste anything into the Agent chat.
 
-You should see these three active together:
+## 6. Concurrency check
+
+Open the Antigravity Agents panel while the analysis runs.
+
+You should see these three specialists active concurrently:
 
 - music-acoustic-analyst
 - music-listener
 - music-researcher
 
-The Orchestrator should use a single multi-subagent delegation step, not wait for one specialist before starting another.
+The Orchestrator should launch them in one multi-subagent delegation step.
 
-## 6. DSP check
+## 7. DSP check
 
 Inspect:
 
 `<runDir>/dsp.json`
 
-Then manually validate:
+Validate:
 
 ```bash
 node tools/music-workflow/validate_artifact.mjs \
@@ -153,32 +157,29 @@ Required:
 - normalized measurement IDs;
 - change-point candidates if threshold crossed.
 
-Inspect the Acoustic subagent log.
-
-It should only run the reviewed `audio_metrics.py` path.
+The Acoustic subagent must only run the reviewed `audio_metrics.py` path.
 
 It must not create an ad-hoc MP3 parser or use `global_gain` as an energy proxy.
 
-## 7. Listener isolation check
+## 8. Listener isolation check
 
 Inspect:
 
 `<runDir>/listen.json`
 
-Look for song-specific direct observations.
+Verify:
 
-Verify the Listener did **not**:
+- recording-specific direct observations;
+- no web search;
+- no Python/shell;
+- no access to dsp.json;
+- no access to research.json.
 
-- search the web;
-- run Python/shell;
-- read dsp.json;
-- read research.json.
+For Antagonistic, compare whether it independently notices salient changes around the previously useful regions near roughly 0:35, 0:53, 1:10, 2:02, 2:10, and the final tail.
 
-For Antagonistic, compare whether it independently notices salient changes near the areas previously discussed around roughly 0:35, 0:53, 1:10, 2:02, 2:10, and the final tail.
+Exact reproduction is not required.
 
-It is not required to reproduce every old timestamp exactly.
-
-## 8. Research isolation check
+## 9. Research isolation check
 
 Inspect:
 
@@ -186,13 +187,27 @@ Inspect:
 
 Verify:
 
-- URLs are real;
-- sources were opened/read rather than copied from search snippets;
-- identity claims are conservative;
-- sparse public information remains sparse;
-- Research did not read the audio/listening result.
+- real URLs;
+- opened/read sources rather than search snippets;
+- conservative identity claims;
+- no access to the audio;
+- no Listen/DSP contamination.
 
-## 9. Final provenance check
+## 10. Final browser result
+
+The browser should automatically pick up `analysis.json` without refresh.
+
+It should show:
+
+- 走心 / 上头 / 懂行;
+- dynamic analysis modules;
+- evidence counts;
+- Listen observations;
+- deterministic DSP values;
+- external sources;
+- unknowns.
+
+Validate provenance:
 
 ```bash
 node tools/music-workflow/validate_artifact.mjs \
@@ -203,37 +218,32 @@ node tools/music-workflow/validate_artifact.mjs \
 
 This must pass.
 
-Then inspect:
+The analysis request should then be marked:
 
-- every interpretation observation ID exists in listen.json;
-- every measurement ID exists in dsp.json;
-- every evidence ID exists as a Research finding;
-- each Research finding points to a source;
-- listening cues do not exceed measured duration.
+`status: completed`
 
-## 10. Failure recovery check
+and the main Orchestrator should immediately return to Session Bus waiting state.
 
-On a separate test run, deliberately prevent Research from succeeding, for example by denying its web permission.
+The browser badge should return to:
+
+> 后台 Gemini 在线等待
+
+## 11. Studio from the browser only
+
+Click:
+
+> 在 Studio 里试试这个机制
 
 Expected:
 
-- Listen remains available;
-- DSP remains available;
-- final analysis can be `partial`;
-- successful branches are not rerun;
-- external context is marked unavailable/unknown.
+1. browser writes `browser-creative-request.json` with `status: queued`;
+2. the same background Orchestrator claims it automatically;
+3. only `music-creative` runs;
+4. Listen / DSP / Research do not rerun;
+5. `studio.json` appears;
+6. the browser automatically displays Strudel A/B.
 
-Do not simulate Listener failure as a successful analysis: Listener is required.
-
-## 11. Studio check
-
-After a successful main analysis, ask:
-
-> Turn interpretation `<id>` into a small A/B teaching experiment.
-
-The Orchestrator should invoke only `music-creative`.
-
-Then validate:
+Validate:
 
 ```bash
 node tools/music-workflow/validate_artifact.mjs \
@@ -244,28 +254,70 @@ node tools/music-workflow/validate_artifact.mjs \
 
 The Studio artifact must remain `learning_reconstruction`.
 
-## 12. Second benchmark
+## 12. Offline queue recovery
+
+Stop Session Mode:
+
+```bash
+python3 tools/music-workflow/session_bus.py stop
+```
+
+Verify the page displays the offline badge.
+
+Submit another song from the browser.
+
+Expected:
+
+- task is still queued locally;
+- no work is lost.
+
+Restart Session Mode from the Orchestrator.
+
+Expected:
+
+- queued request is automatically claimed;
+- no per-song prompt is needed.
+
+## 13. Optional-branch failure recovery
+
+On a separate run, prevent Research from succeeding.
+
+Expected:
+
+- Listen remains;
+- DSP remains;
+- final analysis may be `partial`;
+- successful branches are not rerun;
+- the browser still receives a usable analysis.
+
+Listener failure must still fail the main analysis request.
+
+## 14. Second benchmark
 
 Run:
 
-Battlefield 4 — Warsaw Theme
+**Battlefield 4 — Warsaw Theme**
 
-The purpose is to test generalization and the Listen/Research isolation around the previously useful ~1:15 structural change.
+Use the same browser session without restarting the Orchestrator.
 
-## 13. Acceptance targets
+The purpose is to prove the Session Mode can process multiple songs sequentially while preserving Listen/Research isolation and the useful ~1:15 structural observation.
 
-Do not freeze exact latency until measured.
+## 15. Acceptance targets
 
-The workflow passes if it demonstrates:
+The workflow passes when it demonstrates:
 
+- one-time Antigravity session startup;
+- one-time browser opening;
+- no per-song prompt handoff;
+- persistent local request queue;
 - concurrent specialist execution;
-- large reduction in open-ended Agent loops;
 - correct decoded-audio acoustic metrics;
 - no codec-metadata pseudo-measurement;
 - independent direct listening;
-- independent web research;
+- independent external research;
 - resumable stage artifacts;
 - final provenance validation;
-- useful synthesis on both benchmark tracks.
+- browser-driven on-demand Studio;
+- multiple songs processed in one Session Mode.
 
-Record actual wall-clock and token usage rather than assuming a 40–60 second SLA.
+Record actual wall-clock and token usage rather than assuming a fixed SLA.
