@@ -1,6 +1,6 @@
 # MusicLearning Research Workflow v4 — Antigravity Native
 
-> Status: experimental workflow branch. The goal is to validate the research workflow directly inside Antigravity before wrapping it back into the KuaKuaMusic Web App.
+> Status: experimental product workflow. KuaKuaMusic Browser is now the control surface; Antigravity Main Gemini runs as a persistent session worker behind it.
 
 ## 1. Why this exists
 
@@ -395,7 +395,7 @@ The browser writes queued request files. The Orchestrator blocks on `session_bus
 
 No per-song prompt handoff is part of the product flow.
 
-## 15. Benchmark before Web integration
+## 15. Benchmark before freezing the product path
 
 Do not wrap this workflow back into the Web App until it succeeds on at least:
 
@@ -413,4 +413,4 @@ Evaluate:
 - consistency across repeated runs;
 - value of Studio experiment when requested.
 
-The Web App is downstream of this research workflow, not the place to debug it.
+The browser shell is already integrated. The benchmark now decides whether this Session Mode is stable enough to freeze as the product runtime pattern.
