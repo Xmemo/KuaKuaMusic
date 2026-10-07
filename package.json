@@ -16,7 +16,8 @@
     "schemas:generate": "node scripts/generate-schemas.mjs",
     "verify": "npm run typecheck && npm test && npm run build",
     "licenses:generate": "node scripts/generate-notices.mjs",
-    "workflow:v4:dsp-selftest": "python3 tools/music-dsp/audio_metrics.py --self-test"
+    "workflow:v4:dsp-selftest": "python3 tools/music-dsp/audio_metrics.py --self-test",
+    "workflow:v4:session-start": "python3 tools/music-workflow/start_session.py"
   },
   "dependencies": {
     "@strudel/core": "1.2.6",
