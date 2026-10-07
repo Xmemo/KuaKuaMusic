@@ -66,6 +66,84 @@ v4 不放弃 Gemini/Antigravity，而是改变**分工方式**：
 - **Main Gemini**：只编排与综合；
 - **Creative**：用户需要时再生成教学实验。
 
+## 本地浏览器入口（v4 Browser Bridge）
+
+v4 现在重新接回了本地产品壳。
+
+启用：
+
+```bash
+MUSIC_V4_BRIDGE_ENABLED=1
+VITE_MUSIC_V4_ENABLED=1
+
+# 建议同时关闭旧 Beta UI
+MUSIC_V3_ENABLED=0
+VITE_MUSIC_V3_ENABLED=0
+MUSIC_V2_ENABLED=0
+VITE_MUSIC_V2_ENABLED=0
+```
+
+然后：
+
+```bash
+npm run dev
+```
+
+打开：
+
+```
+http://127.0.0.1:3000
+```
+
+现在浏览器可以完成：
+
+```
+网易云 / QQ / 歌名
+        ↓
+歌曲身份解析
+        ↓
+YouTube 录音候选确认
+        ↓
+本地下载 / Song Package 复用
+        ↓
+创建 v4 run
+        ↓
+复制 Antigravity Orchestrator 指令
+        ↓
+浏览器自动轮询 dsp/listen/research/analysis.json
+        ↓
+展示分析拆解
+        ↓
+「在 Studio 里试试」
+        ↓
+复制 Creative 指令
+        ↓
+自动读取 studio.json + Strudel A/B
+```
+
+### 为什么仍有一次 Antigravity handoff
+
+当前公开的 Antigravity Desktop/Remote Control 能启动和监控 Agent，但没有公开的本地 HTTP 接口允许 KuaKuaMusic 网页把 prompt 直接注入当前 Desktop 会话。
+
+因此 Browser Bridge **不会偷偷恢复 `agy CLI` subprocess**。
+
+网页负责：
+
+- 网易云等入口；
+- 录音物化；
+- run 创建；
+- artifact 轮询；
+- 分析与 Studio 展示。
+
+Antigravity Desktop 负责：
+
+- Main Orchestrator；
+- 三个并行 specialist subagents；
+- synthesis；
+- on-demand Creative。
+
+这样保留了产品体验，同时维持当前“不再用 Node 调 agy CLI”的架构边界。
+
 ## 通用 Music Analysis Skill
 
 Canonical Skill：
