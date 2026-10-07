@@ -517,6 +517,22 @@ export function createV4BridgeService({
         404,
       );
 
+    const currentStudio = await readJsonOptional(path.join(runDir, "studio.json"));
+    if (
+      currentStudio.state === "ready" &&
+      currentStudio.value &&
+      !(currentStudio.value.sourceInterpretationIds || []).includes(interpretationId)
+    ) {
+      const historyDir = path.join(runDir, "studio-history");
+      await fs.mkdir(historyDir, { recursive: true });
+      const archived =
+        new Date().toISOString().replace(/[:.]/gu, "-") + ".json";
+      await fs.rename(
+        path.join(runDir, "studio.json"),
+        path.join(historyDir, archived),
+      );
+    }
+
     await writeJsonAtomic(path.join(runDir, "browser-creative-request.json"), {
       schemaVersion: "4.0",
       kind: "creative",
