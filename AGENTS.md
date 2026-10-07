@@ -1,94 +1,154 @@
 # MusicLearning2026 Agent Rules
 
-## Current target: v3 Single Agent + Generic Skill
+## Current experimental workflow on this branch
 
-The current target architecture is documented in:
+The active experiment is:
 
-- `docs/TECHNICAL_ARCHITECTURE_V3.md`
+**MusicLearning Research Workflow v4 — Antigravity Native**
+
+Read:
+
+- `docs/MUSIC_RESEARCH_WORKFLOW_V4.md`
 - `.agents/skills/music-analysis/SKILL.md`
+- `.agents/agents/music-analysis-orchestrator/agent.md`
 
-v1/v2 remain compatibility/reference paths. Do not apply their older “web evidence before every song-specific music claim” or mandatory MCP assumptions to the v3 route.
+The Web App v1/v2/v3 code remains in the repository for comparison, but this branch does **not** use the v3 `agy CLI` subprocess runtime as its primary workflow.
 
-## Product objective
+## Core execution model
 
-Help the user understand a specific recording, keep observation/measurement/source/interpretation boundaries visible, and optionally turn one supported mechanism into a small executable learning experiment.
+The user runs the workflow directly inside Antigravity.
 
-## v3 architecture rules
+The main Gemini session acts as orchestrator and synthesis layer.
 
-1. The `music-analysis` Skill must remain model-agnostic and host-agnostic.
-2. Model/CLI/API details belong only in Runner adapters.
-3. Do not make v3 depend on MCP servers. Current v3 rejects a run that reports MCP tool use.
-4. Preserve the Listen-first checkpoint before external research.
-5. A precise numerical music claim must come from an executed measurement, not confident prose.
-6. Measurements are estimators; preserve ambiguity and alternatives when meaningful.
-7. External evidence must preserve a real URL and supporting source content.
-8. General music theory may explain a mechanism, but may not prove an unobserved song-specific feature.
-9. Unknown is a valid output.
-10. The server independently validates timestamps, IDs, references, measurement artifact paths, and Strudel code.
+It launches three independent custom subagents concurrently:
 
-## Four epistemic categories
+1. `music-acoustic-analyst`
+2. `music-listener`
+3. `music-researcher`
 
-Keep separate:
+They produce:
+
+- `dsp.json`
+- `listen.json`
+- `research.json`
+
+The main Agent then produces:
+
+- `analysis.json`
+
+The optional `music-creative` subagent is only invoked when the user explicitly wants a Studio experiment.
+
+## Generic Skill
+
+The canonical `music-analysis` Skill is epistemic and model-agnostic.
+
+It defines:
 
 - observation
 - measurement
 - external_evidence
 - interpretation
+- minimum claim basis
+- uncertainty discipline
 
-Do not create additional provenance labels unless they solve a real product problem.
+It must not become a Gemini/Antigravity/FFmpeg/KuaKuaMusic/Strudel-specific orchestration prompt.
 
-## Recording identity
+Execution order and tool assignment belong to custom agents and host workflow files, not the generic Skill.
 
-Treat recording/version selection as first-class.
+## Acoustic measurement policy
 
-The current local materializer:
+The Acoustic Analyst may only invoke the reviewed repository tool:
 
-- searches candidate audio;
-- requires version confirmation;
-- records acquisition provenance;
-- measures actual duration;
-- caches media revisions locally.
+`tools/music-dsp/audio_metrics.py`
 
-Do not silently reuse a different catalog/version snapshot.
+Do not invent replacement DSP methods during a run.
 
-## Skill discipline
+In particular, never infer waveform-level loudness, RMS, energy, tempo, key, or dynamics from MP3 codec metadata such as frame-header quantization values or `global_gain`.
 
-The canonical Skill must not mention:
+Current P0 DSP deliberately covers only:
 
-- Gemini
-- Antigravity
-- Qwen
-- DashScope
-- SiliconFlow
-- KuaKuaMusic-specific UI
-- Strudel-specific product flow
+- duration / native audio metadata
+- Integrated LUFS
+- Loudness Range
+- True Peak
+- decoded-PCM fixed-window RMS timeline
+- deterministic RMS step-change candidates
 
-Product-specific instructions belong in the v3 product prompt and output schema.
+Tempo/key/chord/form estimators are intentionally not P0.
+
+## Isolation policy
+
+### Listener
+
+May access the recording.
+
+Must not access:
+
+- web search
+- Research artifact
+- DSP artifact
+- shell/Python
+
+### Researcher
+
+May access task identity and web tools.
+
+Must not access:
+
+- recording
+- Listen artifact
+- DSP artifact
+
+### Acoustic Analyst
+
+May access recording and fixed DSP script.
+
+Must not access:
+
+- web search
+- ad-hoc DSP implementation
+
+## Provenance
+
+Final `analysis.json` interpretations reference:
+
+- Listener observation IDs
+- DSP measurement IDs
+- Research finding IDs
+
+Research findings in turn reference concrete source IDs.
+
+Run:
+
+`node tools/music-workflow/validate_artifact.mjs`
+
+to enforce cross-artifact references and timestamp bounds.
 
 ## Studio
 
-Studio remains Strudel-first at the application layer.
+Default analysis produces only `studioPotential`.
 
-Any Agent-generated code is a `learning_reconstruction` unless reliable matching transcription/score evidence exists and a future product flow explicitly upgrades provenance.
+Strudel code is generated on demand by `music-creative`.
 
-Server runtime policy remains authoritative. Do not bypass it because a model generated the code.
+All generated Studio code is:
 
-## Repository changes
+`learning_reconstruction`
 
-The AGPL licensing decision is recorded in `docs/STRUDEL_LICENSE_DECISION.md`.
+and must pass the existing Strudel runtime policy validator.
 
-Implementation contracts are defined in:
+## MCP
 
-- `music-learning/contracts.mjs` — legacy/current v1
-- `music-learning/v2/contracts.mjs` — v2 reference
-- `music-learning/v3/contracts.mjs` — v3 target
+No MCP server is required by this workflow.
 
-Regenerate schemas with:
+Do not add MusicBrainz/music21/Discogs/etc. MCP dependencies unless a future benchmark shows a concrete quality benefit.
 
-```bash
-npm run schemas:generate
-```
+## Local artifacts
 
-Generated-schema drift must remain CI-failing.
+Do not commit:
 
-Do not commit local audio, analysis workspaces, API keys, or credentials.
+- audio
+- `.music-learning/runs/`
+- analysis artifacts
+- credentials
+- tokens
+- browser/session state
