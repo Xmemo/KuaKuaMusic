@@ -17,7 +17,8 @@
     "limitation",
     "code",
     "alternativeCode",
-    "visualHints"
+    "visualHints",
+    "playback"
   ],
   "properties": {
     "schemaVersion": {
@@ -83,6 +84,34 @@
           "spectrum",
           "pitchwheel"
         ]
+      }
+    },
+    "playback": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "bpm",
+        "beatsPerCycle",
+        "soundBank",
+        "runtimeVersion"
+      ],
+      "properties": {
+        "bpm": {
+          "type": "number",
+          "minimum": 20,
+          "maximum": 300
+        },
+        "beatsPerCycle": {
+          "type": "number",
+          "minimum": 0.25,
+          "maximum": 32
+        },
+        "soundBank": {
+          "type": "string"
+        },
+        "runtimeVersion": {
+          "type": "string"
+        }
       }
     }
   }
