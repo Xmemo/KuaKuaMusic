@@ -1,171 +1,153 @@
 ---
 name: music-analysis
-description: Investigates a specific music recording by listening before research, measuring exact claims only when useful, separating evidence from interpretation, and preserving uncertainty. Use for rigorous song, track, production, arrangement, or listening analysis.
+description: Model-agnostic epistemic rules for rigorous analysis of a specific music recording. Use whenever listening observations, acoustic measurements, external music evidence, or music-theory interpretations must be kept distinct and uncertainty preserved.
 ---
 
 # Music Analysis
 
-This is a **model-agnostic and host-agnostic** music-analysis protocol.
+This is a **model-agnostic and host-agnostic epistemic protocol**.
 
-Do not assume a particular model family, API, CLI, plugin, MCP server, search provider, Python package, or audio-analysis library is available. Use the capabilities exposed by the current host. If a capability is unavailable, degrade explicitly rather than pretending it was used.
+It does not define an execution pipeline. The host may use one model, several agents, local scripts, APIs, or other orchestration. This skill only defines what different kinds of musical claims mean and what minimum basis they require.
 
-The objective is to understand one specific recording rigorously and explain what is musically interesting about it.
+## Four evidence classes
 
-## Epistemic categories
-
-Keep these categories distinct:
+Keep these distinct:
 
 1. **observation** — something directly perceived in the supplied recording.
-2. **measurement** — a numerical or categorical result produced by an analysis method that was actually executed.
+2. **measurement** — a numerical or categorical result produced by a method that was actually executed.
 3. **external_evidence** — something a real external source states.
 4. **interpretation** — an explanation that combines observations, measurements, external evidence, and general music knowledge.
 
 Never relabel an interpretation as an observation or measurement.
 
-## Investigation protocol
+## Observation rules
 
-### Phase A — Listen first
+An observation may describe:
 
-Before external research, inspect/listen to the complete supplied recording as far as the host permits.
-
-Build an independent listening checkpoint covering only what can be heard:
-
-- overall character;
 - structure and energy arc;
-- notable moments with approximate timestamps;
 - rhythm and groove;
-- harmony or tonal character when perceptible;
 - melody and motif;
+- harmonic or tonal character when perceptible;
 - timbre and texture;
 - arrangement and production;
-- uncertainties.
+- notable moments with approximate timestamps.
 
-If the host provides a writable workspace, persist this checkpoint as:
+Observation does **not** justify invented precision.
 
-`phase-a-observation.json`
+Examples:
 
-before starting external research.
+- acceptable: “a brighter high-frequency layer enters around 0:53”;
+- not acceptable without measurement: “high-frequency energy rises by 6.4 dB at 0:53”;
+- acceptable: “minor-leaning tonal character”;
+- not acceptable without appropriate evidence: “the key is definitely F minor”.
 
-During Phase A:
+## Measurement rules
 
-- do not use web search or external editorial material;
-- do not import remembered reviews, credits, release history, or cultural facts;
-- do not invent exact BPM, key, chords, notes, instruments, plugins, or production techniques because they sound plausible;
-- approximate listening language is allowed, such as “around 110 BPM”, “minor-leaning”, or “a bright high-frequency layer”.
+A measurement exists only when a real analysis method was executed on the recording or on a reliable symbolic representation.
 
-### Phase B — Measure only when useful
+When trusted host-provided measurements are available, use them. Do not re-derive precise acoustic quantities from compressed-media internals merely because the host exposes raw file bytes.
 
-Use available local computation selectively. This may include shell tools, Python, DSP libraries, audio utilities, symbolic-music tools, or equivalent capabilities exposed by the host.
+**Never infer waveform-level loudness, energy, tempo, key, or dynamics from codec metadata such as MP3 frame headers, quantizer fields, bit allocation, or `global_gain` alone.**
 
-Do **not** run a fixed battery of analyses merely to appear scientific.
+A measurement record should preserve when relevant:
 
-Measurement is useful when an exact or quantitative claim materially improves the answer, for example:
+- value and unit;
+- method;
+- analysis parameters or version;
+- time range;
+- ambiguity or alternative candidates;
+- limitations.
 
-- tempo;
-- key or tonal-center estimate;
-- RMS/loudness change;
-- spectral-band change;
-- onset/event density;
-- section-boundary candidate;
-- duration or silence;
-- another concrete acoustic question raised by listening.
+Distinguish two broad classes:
 
-Rules:
+### Deterministic acoustic metrics
 
-- If you publish a precise number, actually compute or retrieve it from a method that was executed.
-- Record the method and meaningful uncertainty or ambiguity.
-- A measurement is an estimator, not ground truth.
-- Tempo analysis should consider half-time/double-time ambiguity when relevant.
-- Key detection should preserve competing candidates when close.
-- Do not convert a high correlation or model score into “100% certainty”.
-- Prefer musically conventional spellings when interpreting enharmonic results.
-- If computation is unavailable or denied, keep the claim approximate or mark it unknown.
+Examples include duration, sample rate, channel count, integrated loudness under a specified standard, true peak, or RMS computed from decoded PCM under fixed parameters.
 
-When a writable workspace exists, temporary scripts may go under `work/` and measurement outputs under `measurements/`.
+These are reproducible for the same decoded signal and method, but wording should still identify the method and parameters.
 
-### Phase C — Research after the listening checkpoint
+### Estimators
 
-Only after the independent listening checkpoint is complete may you use external search or browsing capabilities.
+Examples include tempo, key, chord sequence, beat grid, section boundaries, stem labels, or transcription.
 
-Research selectively for:
+Estimator output is **not ground truth**. Preserve ambiguity:
 
-- official credits and release context;
-- artist/composer/producer interviews;
-- album or soundtrack notes;
-- credible music criticism;
-- production breakdowns;
-- relevant score/transcription material;
-- historical or cultural context.
+- tempo may have half-time/double-time alternatives;
+- key estimates may have close competing candidates;
+- chord/transcription claims require stronger evidence than broad tonal character.
 
-Rules:
+Do not turn a high score/correlation into “100% certainty”.
 
-- Search-result snippets are discovery aids, not evidence.
-- Open/read the source before using it when possible.
-- Prefer primary or near-primary sources for creator/production claims.
-- Preserve the exact source URL when the host can expose it.
-- Keep a short excerpt or precise paraphrase that supports the stated claim.
-- If reliable material is thin, say so.
-- Do not compensate for thin research by inventing song-specific facts.
-- No MCP server or plugin is required by this skill. Never make the analysis depend on a specific extension.
+## External evidence rules
 
-### Phase D — Synthesize
+External evidence should preserve:
 
-Combine the independent listening checkpoint, useful measurements, external evidence, and general music principles.
+- exact source URL when available;
+- title/publisher;
+- a short supporting excerpt or precise paraphrase;
+- the claim that the source actually supports;
+- scope: recording / release / work / artist / general.
 
-A strong interpretation often follows:
+Search-result snippets are discovery aids, not evidence.
 
-> observation/measurement → musical mechanism → plausible perceptual effect
+Prefer primary or near-primary sources for creator, production, release, or intent claims.
 
-General music theory may explain a mechanism without a song-specific citation, but it cannot prove that the recording contains a feature you did not observe or measure.
+If reliable material is thin, say so. Do not compensate by inventing song-specific facts.
 
-Keep conflicts and uncertainty visible.
+Identity claims deserve special care. Similar titles, aliases, game-radio labels, uploader names, fan wikis, and third-party metadata do not by themselves establish that two names refer to the same recording, artist, or creator.
 
-## Claim policy
+## Interpretation rules
 
-Before finalizing, apply these minimum bases:
+Interpretation explains musical meaning or mechanism.
+
+A useful pattern is:
+
+> observation / measurement / external evidence → musical mechanism → plausible perceptual effect
+
+Examples:
+
+- “The stable pulse remains while surface-event density increases, so the section gains urgency without requiring a tempo change.”
+- “The sudden reduction in short-window RMS coincides with fewer active layers, strengthening the sense of temporary weightlessness.”
+
+General music theory may explain a mechanism without a song-specific citation, but it cannot prove that a recording contains a feature that was never observed or measured.
+
+## Minimum-basis policy
 
 | Claim | Minimum basis |
 | --- | --- |
 | “Around 1:15 the arrangement opens up” | direct audio observation |
-| “RMS falls from X to Y” | executed measurement |
-| “Tempo is 108.8 BPM” | executed measurement plus ambiguity awareness |
-| “Key estimate is F minor” | executed tonal measurement, not listening alone |
-| “The progression is Fm–D♭–A♭–E♭” | reliable transcription/symbolic evidence or sufficiently explicit measurement |
+| “RMS falls from X to Y” | executed measurement on decoded audio |
+| “Integrated loudness is X LUFS” | executed standards-based loudness measurement |
+| “Tempo is 108.8 BPM” | executed tempo estimator + ambiguity awareness |
+| “Key estimate is F minor” | executed tonal estimator or reliable symbolic evidence |
+| “The progression is Fm–D♭–A♭–E♭” | reliable transcription/symbolic evidence or sufficiently explicit analysis |
 | “The producer used plugin X” | external evidence |
 | “This feels more urgent because density rises over a stable pulse” | interpretation grounded in observation/measurement |
 | “Industrial music often uses mechanical repetition” | general theory/style prior, never proof about this recording |
 
+## Uncertainty rules
+
+- Unknown is a valid result.
+- Contradictory sources should remain contradictory unless stronger evidence resolves them.
+- Approximate timestamps should not be dressed up as sample-accurate boundaries.
+- Algorithmic estimates should keep alternatives when meaningful.
+- Do not claim a score, transcription, chord sequence, production chain, or creator identity is exact unless the evidence supports that precision.
+
 ## Output quality
 
-- Prefer song-specific, time-localized insights over generic genre prose.
-- Do not force every category to be populated.
+- Prefer recording-specific, time-localized insights over generic genre prose.
+- Do not force every analysis category to be populated.
 - Do not write “100% certain”, “proved”, or equivalent language for model/DSP estimators.
-- Distinguish what was heard, what was measured, what sources say, and what is inferred.
-- Exact timestamps must fit within the supplied audio duration.
-- If a global observation has no meaningful moment, leave its time range unspecified/null.
-- Unknown is a valid result.
-- Do not claim a score, transcription, chord sequence, or production chain is exact unless the evidence supports that precision.
+- Clearly distinguish what was heard, what was measured, what sources say, and what is inferred.
 
 ## Downstream tasks
 
-The caller may request additional product-specific outputs such as:
+The caller may request:
 
 - a review or teaching explanation;
 - multiple writing styles;
-- a structured JSON artifact;
+- structured JSON;
 - a creative exercise;
 - executable music code.
 
-Follow the caller-provided schema and runtime constraints for those outputs. Do not bake any particular downstream product, framework, or synthesis runtime into the core analysis method.
-
-## Workspace discipline
-
-If the host provides an isolated analysis workspace:
-
-- read only the supplied input assets and task metadata;
-- write only inside that workspace;
-- do not modify application source code;
-- do not inspect secret files or environment configuration;
-- preserve `phase-a-observation.json` as the pre-research checkpoint when file output is available.
-
-The host application may independently validate timestamps, references, measurements, source URLs, and executable output.
+Follow caller-provided schemas and runtime constraints. Do not bake any product, model family, CLI, search provider, DSP implementation, or synthesis runtime into this core skill.
