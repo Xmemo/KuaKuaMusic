@@ -18,6 +18,7 @@ import { createLocalSecurity } from "./localSecurity.mjs";
 import { AppError } from "./errors.mjs";
 import { createV2Service } from "./v2/v2Service.mjs";
 import { createV3Service } from "./v3/v3Service.mjs";
+import { createV4BridgeService } from "./v4/v4BridgeService.mjs";
 dotenv.config({ path: ".env.local", quiet: true });
 dotenv.config({ quiet: true });
 export function createApp({
@@ -31,7 +32,8 @@ export function createApp({
   const app = express(),
     security = createLocalSecurity({ apiPort: port, webPort }),
     v2 = process.env.MUSIC_V2_ENABLED === "1" ? createV2Service() : null,
-    v3 = process.env.MUSIC_V3_ENABLED === "1" ? createV3Service() : null;
+    v3 = process.env.MUSIC_V3_ENABLED === "1" ? createV3Service() : null,
+    v4 = process.env.MUSIC_V4_BRIDGE_ENABLED === "1" ? createV4BridgeService() : null;
   app.disable("x-powered-by");
   app.use(security.boundary);
   app.use(express.json({ limit: "128kb" }));
@@ -134,6 +136,31 @@ export function createApp({
         res.removeListener("close", disconnect);
       }
     });
+  if (v4) {
+    app.post(
+      "/api/agent/v4/prepare",
+      researchRoute(async (body, context) =>
+        v4.prepare(body, context),
+      ),
+    );
+    app.get(
+      "/api/agent/v4/runs/:runId",
+      route(async (req, res) =>
+        res.json(await v4.status(req.params.runId)),
+      ),
+    );
+    app.post(
+      "/api/agent/v4/runs/:runId/creative-request",
+      route(async (req, res) =>
+        res.json(
+          await v4.requestCreative(
+            req.params.runId,
+            req.body?.interpretationId,
+          ),
+        ),
+      ),
+    );
+  }
   if (v3) {
     app.get(
       "/api/agent/v3/health",
