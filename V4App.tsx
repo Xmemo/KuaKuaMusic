@@ -2,12 +2,16 @@ import React, { useEffect, useRef, useState } from "react";
 import { searchSongs } from "./services/musicService";
 import {
   getV4RunStatus,
+  getV4SessionStatus,
   prepareV4Run,
   requestV4Creative,
   type V4PrepareResponse,
   type V4Progress,
 } from "./services/musicLearningV4Service";
-import type { V4RunStatus } from "./music-learning/v4/types";
+import type {
+  V4RunStatus,
+  V4SessionStatus,
+} from "./music-learning/v4/types";
 import type { SongMetadata } from "./types";
 import StudioPlayer from "./components/StudioPlayer";
 
@@ -32,17 +36,28 @@ function stageLabel(
   state: "missing" | "writing" | "ready",
   status: string | null,
 ) {
-  if (state === "missing") return "等待 Antigravity";
+  if (state === "missing") return "等待";
   if (state === "writing") return "正在写入";
   if (status === "failed") return "失败";
   if (status === "partial") return "部分完成";
   return "已完成";
 }
 
-async function copyText(value: string) {
-  if (!navigator.clipboard)
-    throw new Error("当前浏览器不支持自动复制，请手动复制下面的指令。");
-  await navigator.clipboard.writeText(value);
+function sessionLabel(session: V4SessionStatus | null) {
+  if (!session?.online) return "后台 Gemini 未连接";
+  if (session.status === "processing")
+    return session.activeKind === "creative"
+      ? "后台 Gemini 正在创建 Studio"
+      : "后台 Gemini 正在分析";
+  return "后台 Gemini 在线等待";
+}
+
+function requestLabel(status: string | undefined | null) {
+  if (status === "queued") return "已排队";
+  if (status === "claimed") return "Gemini 已接单";
+  if (status === "completed") return "已完成";
+  if (status === "failed") return "失败";
+  return "等待";
 }
 
 export default function V4App() {
@@ -52,17 +67,48 @@ export default function V4App() {
   const [prepareResult, setPrepareResult] =
     useState<V4PrepareResponse | null>(null);
   const [run, setRun] = useState<V4RunStatus | null>(null);
+  const [session, setSession] = useState<V4SessionStatus | null>(null);
   const [mode, setMode] = useState<keyof typeof modes>("emo");
   const [busy, setBusy] = useState("");
   const [progress, setProgress] = useState<V4Progress | null>(null);
   const [error, setError] = useState("");
-  const [handoffMessage, setHandoffMessage] = useState("");
-  const [creativePrompt, setCreativePrompt] = useState("");
+  const [notice, setNotice] = useState("");
   const [creativeTarget, setCreativeTarget] = useState("");
   const controller = useRef<AbortController | null>(null);
 
   const runId =
-    prepareResult?.status === "run_ready" ? prepareResult.runId : null;
+    prepareResult?.status === "run_queued" ? prepareResult.runId : null;
+
+  useEffect(() => {
+    let disposed = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const poll = async () => {
+      try {
+        const value = await getV4SessionStatus();
+        if (!disposed) setSession(value);
+      } catch {
+        if (!disposed)
+          setSession({
+            status: "offline",
+            online: false,
+            sessionId: null,
+            startedAt: null,
+            updatedAt: null,
+            activeRequestId: null,
+            activeRunId: null,
+            activeKind: null,
+            lastError: null,
+          });
+      } finally {
+        if (!disposed) timer = setTimeout(poll, 1500);
+      }
+    };
+    void poll();
+    return () => {
+      disposed = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, []);
 
   useEffect(() => {
     if (!runId) return;
@@ -73,11 +119,12 @@ export default function V4App() {
         const value = await getV4RunStatus(runId);
         if (disposed) return;
         setRun(value);
+        setSession(value.session);
         setError("");
       } catch (cause) {
         if (!disposed) setError((cause as Error).message);
       } finally {
-        if (!disposed) timer = setTimeout(poll, 1500);
+        if (!disposed) timer = setTimeout(poll, 1200);
       }
     };
     void poll();
@@ -93,10 +140,10 @@ export default function V4App() {
     controller.current?.abort();
     setBusy("正在解析歌曲链接");
     setError("");
+    setNotice("");
     setMatches([]);
     setPrepareResult(null);
     setRun(null);
-    setCreativePrompt("");
     setCreativeTarget("");
     try {
       setMatches(await searchSongs(query));
@@ -115,10 +162,10 @@ export default function V4App() {
     controller.current = new AbortController();
     setSelected(song);
     setError("");
+    setNotice("");
     setBusy("正在准备本地录音");
     setProgress(null);
     setRun(null);
-    setCreativePrompt("");
     setCreativeTarget("");
     if (!selectedSourceId) setPrepareResult(null);
 
@@ -136,9 +183,14 @@ export default function V4App() {
         },
       );
       setPrepareResult(value);
-      if (value.status === "run_ready") {
+      if (value.status === "run_queued") {
         setMatches([]);
-        setHandoffMessage("Run 已准备好。复制指令到 Antigravity 开始分析。");
+        setSession(value.session);
+        setNotice(
+          value.session.online
+            ? "分析任务已提交，后台 Gemini 会自动接手。"
+            : "分析任务已排队。请先在 Antigravity 中启动一次 music-analysis-orchestrator Session Mode；任务不会丢失。",
+        );
       }
     } catch (cause) {
       if ((cause as Error).name !== "AbortError")
@@ -149,36 +201,19 @@ export default function V4App() {
     }
   }
 
-  async function copyAnalysisPrompt() {
-    const prompt =
-      run?.antigravityPrompt ||
-      (prepareResult?.status === "run_ready"
-        ? prepareResult.antigravityPrompt
-        : "");
-    if (!prompt) return;
-    try {
-      await copyText(prompt);
-      setHandoffMessage("已复制。切到 Antigravity，选择 music-analysis-orchestrator 后粘贴运行。");
-    } catch (cause) {
-      setHandoffMessage((cause as Error).message);
-    }
-  }
-
   async function createExperiment(interpretationId: string) {
     if (!runId) return;
     setError("");
+    setNotice("");
     try {
       const value = await requestV4Creative(runId, interpretationId);
       setCreativeTarget(interpretationId);
-      setCreativePrompt(value.antigravityPrompt);
-      try {
-        await copyText(value.antigravityPrompt);
-        setHandoffMessage(
-          "Studio 指令已复制。切到 Antigravity 粘贴运行；本页会继续等待 studio.json。",
-        );
-      } catch (cause) {
-        setHandoffMessage((cause as Error).message);
-      }
+      setSession(value.session);
+      setNotice(
+        value.session.online
+          ? "Studio 任务已提交，后台 Gemini 会自动创建 A/B 实验。"
+          : "Studio 任务已排队，等待 Antigravity Session Mode 重新在线。",
+      );
     } catch (cause) {
       setError((cause as Error).message);
     }
@@ -189,11 +224,8 @@ export default function V4App() {
   const dsp = run?.artifacts.dsp.value;
   const research = run?.artifacts.research.value;
   const studio = run?.artifacts.studio.value;
-  const analysisPrompt =
-    run?.antigravityPrompt ||
-    (prepareResult?.status === "run_ready"
-      ? prepareResult.antigravityPrompt
-      : "");
+  const analysisRequest = run?.requests.analysis;
+  const creativeRequest = run?.requests.creative;
 
   return (
     <div className="music-app">
@@ -201,19 +233,32 @@ export default function V4App() {
         <a className="brand" href="/">
           夸夸音乐 <span>Antigravity v4</span>
         </a>
-        <span className="tag">
-          网易云入口 · 本地录音 · 并行研究 · Studio
-        </span>
+        <span className="tag">{sessionLabel(session)}</span>
       </header>
 
       <main>
         <section className="hero">
           <p className="eyebrow">Link → Recording → Research Team → Experiment</p>
-          <h1>粘贴一首歌，让它真正被听、被测量、被考据。</h1>
+          <h1>在一个页面里听、测量、考据，再把音乐机制做出来。</h1>
           <p className="muted">
-            浏览器负责歌曲入口和结果呈现；Antigravity 负责三个隔离的专业子 Agent 并行分析。
+            你只操作这个本地页面。后台 Gemini Session 会自动接收分析和 Studio 任务。
           </p>
         </section>
+
+        {!session?.online ? (
+          <section className="panel">
+            <p className="eyebrow">Session Mode</p>
+            <h2>后台 Gemini 还没进入等待状态</h2>
+            <p className="muted">
+              第一次使用时，在 Antigravity 中选择
+              <code> music-analysis-orchestrator </code>
+              并让它启动 KuaKuaMusic Session Mode。之后每首歌都不需要再回 Agent 对话框。
+            </p>
+            <p className="notice">
+              即使现在先提交歌曲也没关系：任务会留在本地队列，Session 上线后自动处理。
+            </p>
+          </section>
+        ) : null}
 
         <form className="panel input-panel" onSubmit={search}>
           <label htmlFor="v4-query">网易云 / QQ 音乐链接、歌名或艺人</label>
@@ -245,6 +290,7 @@ export default function V4App() {
             {error}
           </p>
         ) : null}
+        {notice ? <p className="notice">{notice}</p> : null}
 
         {matches.length ? (
           <section className="panel">
@@ -300,15 +346,15 @@ export default function V4App() {
           </section>
         ) : null}
 
-        {prepareResult?.status === "run_ready" ? (
+        {prepareResult?.status === "run_queued" ? (
           <section className="panel">
             <div className="section-top">
               <div>
-                <p className="eyebrow">Antigravity Handoff</p>
-                <h2>录音已准备好，现在交给研究团队</h2>
+                <p className="eyebrow">Analysis Queue</p>
+                <h2>录音已准备好</h2>
               </div>
               <span className="tag">
-                {prepareResult.reused ? "复用本地录音" : "新录音已缓存"}
+                {requestLabel(analysisRequest?.status || "queued")}
               </span>
             </div>
             <p>
@@ -320,29 +366,23 @@ export default function V4App() {
             <p className="muted">
               Run：{prepareResult.runId}
             </p>
-            <p className="muted">
-              浏览器不会偷偷调用 agy CLI。请在 Antigravity 中运行下面这条任务；本页会自动等待并读取产物。
+            <p>
+              {session?.online
+                ? "后台 Gemini 正在监听本地任务队列；你可以留在这个页面等待结果。"
+                : "任务已经写入本地队列。启动 Session Mode 后，它会自动被处理。"}
             </p>
-            <textarea
-              readOnly
-              value={analysisPrompt}
-              rows={11}
-              style={{ width: "100%", resize: "vertical" }}
-              aria-label="Antigravity 分析指令"
-            />
-            <div className="actions">
-              <button className="primary" onClick={copyAnalysisPrompt}>
-                复制 Antigravity 分析指令
-              </button>
-            </div>
-            {handoffMessage ? <p className="notice">{handoffMessage}</p> : null}
           </section>
         ) : null}
 
         {run ? (
           <section className="panel">
-            <p className="eyebrow">Live Artifacts</p>
-            <h2>研究进度</h2>
+            <div className="section-top">
+              <div>
+                <p className="eyebrow">Live Workflow</p>
+                <h2>研究进度</h2>
+              </div>
+              <span className="tag">{sessionLabel(run.session)}</span>
+            </div>
             <div className="song-grid">
               {(
                 [
@@ -367,6 +407,12 @@ export default function V4App() {
                 </div>
               ))}
             </div>
+            <p className="muted">
+              主分析请求：{requestLabel(analysisRequest?.status)}
+              {creativeRequest
+                ? " · Studio 请求：" + requestLabel(creativeRequest.status)
+                : ""}
+            </p>
           </section>
         ) : null}
 
@@ -439,9 +485,18 @@ export default function V4App() {
                           {studioRecommended ? (
                             <button
                               className="primary"
+                              disabled={
+                                creativeRequest?.status === "queued" ||
+                                creativeRequest?.status === "claimed"
+                              }
                               onClick={() => createExperiment(item.id)}
                             >
-                              在 Studio 里试试这个机制
+                              {creativeTarget === item.id &&
+                              ["queued", "claimed"].includes(
+                                creativeRequest?.status || "",
+                              )
+                                ? "Studio 正在生成"
+                                : "在 Studio 里试试这个机制"}
                             </button>
                           ) : null}
                         </div>
@@ -525,9 +580,7 @@ export default function V4App() {
             <h2>确定性声学指标</h2>
             <div className="song-grid">
               <div className="song-choice">
-                <strong>
-                  {dsp.loudness.integratedLufs ?? "—"} LUFS
-                </strong>
+                <strong>{dsp.loudness.integratedLufs ?? "—"} LUFS</strong>
                 <span>Integrated Loudness</span>
               </div>
               <div className="song-choice">
@@ -595,37 +648,6 @@ export default function V4App() {
           </section>
         ) : null}
 
-        {creativePrompt && !studio ? (
-          <section className="panel">
-            <p className="eyebrow">Creative Handoff</p>
-            <h2>Studio 任务已准备</h2>
-            <p>
-              分析点：<code>{creativeTarget}</code>
-            </p>
-            <textarea
-              readOnly
-              value={creativePrompt}
-              rows={8}
-              style={{ width: "100%", resize: "vertical" }}
-              aria-label="Antigravity Studio 指令"
-            />
-            <button
-              className="primary"
-              onClick={() => {
-                void copyText(creativePrompt)
-                  .then(() =>
-                    setHandoffMessage("Studio 指令已重新复制。"),
-                  )
-                  .catch((cause) =>
-                    setHandoffMessage((cause as Error).message),
-                  );
-              }}
-            >
-              复制 Studio 指令
-            </button>
-          </section>
-        ) : null}
-
         {studio ? (
           <section className="panel studio">
             <p className="eyebrow">Creative Experiment · 教学重构</p>
@@ -666,7 +688,7 @@ export default function V4App() {
 
       <footer>
         <p>
-          浏览器负责产品壳；Antigravity 负责 v4 并行研究。没有后台 agy CLI 隐式调用。
+          Antigravity Session Mode · Browser Request Queue · No per-song prompt handoff
         </p>
       </footer>
     </div>
