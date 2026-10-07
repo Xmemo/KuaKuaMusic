@@ -16,9 +16,11 @@ The Web App v1/v2/v3 code remains in the repository for comparison, but this bra
 
 ## Core execution model
 
-The user runs the workflow directly inside Antigravity.
+The user starts `music-analysis-orchestrator` once in Antigravity Session Mode.
 
-The main Gemini session acts as orchestrator and synthesis layer.
+The local browser is the user-facing control surface. It writes analysis/creative requests into local run files. The main Gemini session remains alive, blocks on `tools/music-workflow/session_bus.py wait`, claims those requests, orchestrates the specialist subagents, writes artifacts, marks the request complete, and returns to the queue.
+
+There is no per-song prompt copy/paste and no Node → `agy CLI` subprocess.
 
 It launches three independent custom subagents concurrently:
 
@@ -148,7 +150,29 @@ Do not commit:
 
 - audio
 - `.music-learning/runs/`
+- `.music-learning/session/`
 - analysis artifacts
 - credentials
 - tokens
 - browser/session state
+
+
+## Session bus
+
+Session startup:
+
+```bash
+python3 tools/music-workflow/start_session.py
+```
+
+Browser requests are local JSON files.
+
+The main orchestrator waits with:
+
+```bash
+python3 tools/music-workflow/session_bus.py wait --timeout 300
+```
+
+After processing a claimed request, it must call `session_bus.py complete` and immediately wait again.
+
+The browser may queue work while the orchestrator is offline; queued work must not be discarded.
