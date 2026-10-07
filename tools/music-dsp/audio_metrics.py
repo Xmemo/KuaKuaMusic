@@ -300,6 +300,7 @@ def build_failed(path: Path, window_sec: float, error: str) -> dict[str, Any]:
             "method": "ffmpeg ebur128=peak=true",
         },
         "rmsTimeline": [],
+        "measurements": [],
         "changePoints": [],
         "methods": [],
         "warnings": [],
@@ -323,6 +324,59 @@ def extract_metrics(
         context_sec=context_sec,
     )
 
+    measurements: list[dict[str, Any]] = []
+    if loudness["integratedLufs"] is not None:
+        measurements.append({
+            "id": "measure-lufs-001",
+            "kind": "integrated_loudness",
+            "class": "deterministic_acoustic",
+            "value": loudness["integratedLufs"],
+            "unit": "LUFS",
+            "methodId": "method-loudness-001",
+            "startSec": None,
+            "endSec": None,
+            "notes": ["Integrated whole-program loudness under the configured ebur128 method."],
+        })
+    if loudness["loudnessRangeLu"] is not None:
+        measurements.append({
+            "id": "measure-lra-001",
+            "kind": "loudness_range",
+            "class": "deterministic_acoustic",
+            "value": loudness["loudnessRangeLu"],
+            "unit": "LU",
+            "methodId": "method-loudness-001",
+            "startSec": None,
+            "endSec": None,
+            "notes": ["Whole-program Loudness Range from ffmpeg ebur128."],
+        })
+    if loudness["truePeakDbfs"] is not None:
+        measurements.append({
+            "id": "measure-true-peak-001",
+            "kind": "true_peak",
+            "class": "deterministic_acoustic",
+            "value": loudness["truePeakDbfs"],
+            "unit": "dBFS",
+            "methodId": "method-loudness-001",
+            "startSec": None,
+            "endSec": None,
+            "notes": ["Whole-program True Peak from ffmpeg ebur128 peak=true."],
+        })
+    for point in change_points:
+        measurements.append({
+            "id": point["id"],
+            "kind": "rms_step_change",
+            "class": "derived_deterministic",
+            "value": point["deltaDb"],
+            "unit": "dB",
+            "methodId": "method-change-001",
+            "startSec": max(0.0, round(point["atSec"] - point["contextSec"], 4)),
+            "endSec": round(point["atSec"] + point["contextSec"], 4),
+            "notes": [
+                "Positive means higher decoded-PCM RMS after the boundary; negative means lower.",
+                "This is a deterministic change candidate, not a semantic section label.",
+            ],
+        })
+
     return {
         "schemaVersion": SCHEMA_VERSION,
         "status": "complete",
@@ -342,6 +396,7 @@ def extract_metrics(
             "method": "ffmpeg ebur128=peak=true (EBU R128 loudness / True Peak)",
         },
         "rmsTimeline": timeline,
+        "measurements": measurements,
         "changePoints": change_points,
         "methods": [
             {
