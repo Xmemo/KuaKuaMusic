@@ -103,9 +103,9 @@ test("v4 browser bridge materializes a selected recording and prepares an Antigr
     selectedSourceId: "abc123XYZ",
     forceRematch: true,
   });
-  assert.equal(ready.status, "run_ready");
-  assert.match(ready.antigravityPrompt, /music-analysis-orchestrator/);
-  assert.match(ready.antigravityPrompt, /Do NOT create another run/);
+  assert.equal(ready.status, "run_queued");
+  assert.equal(typeof ready.requestId, "string");
+  assert.equal(ready.session.online, false);
   assert.equal(
     await fs.readFile(path.join(ready.runDir, "input.mp3"), "utf8"),
     "analysis-audio",
@@ -114,7 +114,7 @@ test("v4 browser bridge materializes a selected recording and prepares an Antigr
   const task = JSON.parse(
     await fs.readFile(path.join(ready.runDir, "task.json"), "utf8"),
   );
-  assert.equal(task.requestedBy, "kua-browser-bridge");
+  assert.equal(task.requestedBy, "kua-browser-session");
   assert.equal(task.identity.title, "Antagonistic");
   assert.equal(task.identity.platform, "NETEASE");
   assert.equal(task.recording.durationSec, 165);
@@ -123,6 +123,9 @@ test("v4 browser bridge materializes a selected recording and prepares an Antigr
   assert.equal(status.summary.listen.state, "missing");
   assert.equal(status.summary.analysis.state, "missing");
   assert.equal(status.runDir, ready.runDir);
+  assert.equal(status.requests.analysis.status, "queued");
+  assert.equal(status.requests.analysis.requestId, ready.requestId);
+  assert.equal(status.session.online, false);
 });
 
 test("v4 browser bridge observes Antigravity artifacts without invoking a model runtime", async (t) => {
@@ -211,9 +214,9 @@ test("v4 browser bridge observes Antigravity artifacts without invoking a model 
   assert.equal(polled.artifacts.analysis.value.overall.hook, "Hook");
 
   const creative = await service.requestCreative(ready.runId, "int-001");
-  assert.equal(creative.status, "creative_ready");
-  assert.match(creative.antigravityPrompt, /Invoke only music-creative/);
-  assert.match(creative.antigravityPrompt, /int-001/);
+  assert.equal(creative.status, "creative_queued");
+  assert.equal(typeof creative.requestId, "string");
+  assert.equal(creative.interpretationId, "int-001");
 
   const request = JSON.parse(
     await fs.readFile(
@@ -222,6 +225,8 @@ test("v4 browser bridge observes Antigravity artifacts without invoking a model 
     ),
   );
   assert.equal(request.interpretationId, "int-001");
+  assert.equal(request.status, "queued");
+  assert.equal(request.kind, "creative");
 });
 
 test("v4 creative request archives stale Studio output for another interpretation", async (t) => {
