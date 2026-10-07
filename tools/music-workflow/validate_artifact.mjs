@@ -4,7 +4,7 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 import Ajv2020 from "ajv/dist/2020.js";
-import { validateStudioCode } from "../../studio/runtimePolicy.mjs";
+import { validateRuntimePlayback, validateStudioCode } from "../../studio/runtimePolicy.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 
@@ -279,6 +279,7 @@ async function validateStudio(value, runDir) {
 
   validateStudioCode(value.code);
   validateStudioCode(value.alternativeCode);
+  validateRuntimePlayback(value.playback);
 
   if (runDir) {
     const analysis = await readJson(path.join(runDir, "analysis.json"));
