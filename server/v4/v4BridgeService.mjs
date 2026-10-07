@@ -75,7 +75,7 @@ async function readJsonOptional(file) {
       return {
         state: "writing",
         value: null,
-        error: "artifact JSON 正在写入或暂时不完整。",
+        error: "JSON 正在写入或暂时不完整。",
       };
     throw error;
   }
@@ -108,38 +108,72 @@ function candidateFromMedia(media) {
   );
 }
 
-function analysisPrompt(runDir) {
-  return [
-    "Use the workspace custom agent music-analysis-orchestrator.",
-    "",
-    "Process this existing browser-prepared MusicLearning v4 run:",
-    runDir,
-    "",
-    "Important:",
-    "- The browser has already resolved the song identity and local recording.",
-    "- Read task.json from that run directory.",
-    "- Do NOT create another run and do NOT download another recording.",
-    "- Launch music-acoustic-analyst, music-listener, and music-researcher concurrently in one invoke_subagent call.",
-    "- Validate dsp.json, listen.json, and research.json.",
-    "- Synthesize and validate analysis.json.",
-    "- Stop after analysis.json. Do not generate studio.json yet.",
-  ].join("\n");
+function requestPayload({
+  kind,
+  runId,
+  interpretationId = null,
+  now,
+}) {
+  const timestamp = now().toISOString();
+  return {
+    schemaVersion: "4.0",
+    requestId: crypto.randomUUID(),
+    kind,
+    runId,
+    status: "queued",
+    interpretationId,
+    queuedAt: timestamp,
+    createdAt: timestamp,
+    claimedAt: null,
+    claimedBySessionId: null,
+    completedAt: null,
+    error: null,
+  };
 }
 
-function creativePrompt(runDir, interpretationId) {
-  return [
-    "Use the workspace custom agent music-analysis-orchestrator.",
-    "",
-    "Continue this existing MusicLearning v4 run:",
-    runDir,
-    "",
-    "Create an on-demand teaching experiment for interpretation:",
-    interpretationId,
-    "",
-    "Invoke only music-creative for this request.",
-    "Write and validate studio.json in the existing run.",
-    "Do not rerun Listen, DSP, Research, or the main analysis.",
-  ].join("\n");
+function sessionView(record, currentTime = Date.now()) {
+  if (!record) {
+    return {
+      status: "offline",
+      online: false,
+      sessionId: null,
+      startedAt: null,
+      updatedAt: null,
+      activeRequestId: null,
+      activeRunId: null,
+      activeKind: null,
+      lastError: null,
+    };
+  }
+
+  const updatedMs = Date.parse(record.updatedAt || "");
+  const ageMs = Number.isFinite(updatedMs) ? currentTime - updatedMs : Infinity;
+  const freshWindowMs =
+    record.status === "waiting"
+      ? 15_000
+      : record.status === "processing"
+        ? 30 * 60_000
+        : 0;
+  const online =
+    ["waiting", "processing"].includes(record.status) &&
+    ageMs >= 0 &&
+    ageMs <= freshWindowMs;
+
+  return {
+    status: online
+      ? record.status
+      : record.status === "stopped"
+        ? "stopped"
+        : "offline",
+    online,
+    sessionId: record.sessionId || null,
+    startedAt: record.startedAt || null,
+    updatedAt: record.updatedAt || null,
+    activeRequestId: record.activeRequestId || null,
+    activeRunId: record.activeRunId || null,
+    activeKind: record.activeKind || null,
+    lastError: record.lastError || null,
+  };
 }
 
 async function createRun({
@@ -182,7 +216,7 @@ async function createRun({
     schemaVersion: "4.0",
     runId,
     createdAt: now().toISOString(),
-    requestedBy: "kua-browser-bridge",
+    requestedBy: "kua-browser-session",
     identity: {
       songId: song.songId,
       title: song.title,
@@ -215,19 +249,20 @@ async function createRun({
     },
   };
   await writeJsonAtomic(path.join(runDir, "task.json"), task);
-  await writeJsonAtomic(path.join(runDir, "browser-request.json"), {
-    schemaVersion: "4.0",
+
+  const request = requestPayload({
     kind: "analysis",
-    status: "prepared",
-    createdAt: now().toISOString(),
+    runId,
+    now,
   });
+  await writeJsonAtomic(path.join(runDir, "browser-request.json"), request);
 
   return {
     runId,
     runDir,
     audioPath,
     task,
-    antigravityPrompt: analysisPrompt(runDir),
+    request,
   };
 }
 
@@ -238,7 +273,10 @@ export function createV4BridgeService({
   runsRoot = path.resolve(
     env.MUSIC_V4_RUNS_DIR || path.join(".music-learning", "runs"),
   ),
-  now,
+  sessionRoot = path.resolve(
+    env.MUSIC_V4_SESSION_DIR || path.join(".music-learning", "session"),
+  ),
+  now = () => new Date(),
 } = {}) {
   async function materialize(
     {
@@ -422,6 +460,13 @@ export function createV4BridgeService({
     };
   }
 
+  async function sessionStatus() {
+    const record = await readJsonOptional(
+      path.join(sessionRoot, "orchestrator.json"),
+    );
+    return sessionView(record.value, now().getTime());
+  }
+
   async function prepare(body = {}, context = {}) {
     const materialized = await materialize(body, context);
     if (materialized.status === "confirmation_required")
@@ -435,11 +480,11 @@ export function createV4BridgeService({
       now,
     });
     context.onProgress?.({
-      stage: "run_ready",
-      label: "本地录音和 v4 Run 已准备好",
+      stage: "request_queued",
+      label: "录音已准备好，分析任务已进入 Gemini 队列",
     });
     return {
-      status: "run_ready",
+      status: "run_queued",
       reused: Boolean(materialized.reused),
       songId: materialized.songId,
       song: materialized.song,
@@ -449,7 +494,8 @@ export function createV4BridgeService({
       },
       runId: run.runId,
       runDir: run.runDir,
-      antigravityPrompt: run.antigravityPrompt,
+      requestId: run.request.requestId,
+      session: await sessionStatus(),
     };
   }
 
@@ -486,11 +532,20 @@ export function createV4BridgeService({
       ]),
     );
 
+    const [analysisRequest, creativeRequest] = await Promise.all([
+      readJsonOptional(path.join(runDir, "browser-request.json")),
+      readJsonOptional(path.join(runDir, "browser-creative-request.json")),
+    ]);
+
     return {
       runId,
       runDir,
       task,
-      antigravityPrompt: analysisPrompt(runDir),
+      session: await sessionStatus(),
+      requests: {
+        analysis: analysisRequest.value,
+        creative: creativeRequest.value,
+      },
       artifacts,
       summary,
     };
@@ -517,6 +572,24 @@ export function createV4BridgeService({
         404,
       );
 
+    const requestFile = path.join(runDir, "browser-creative-request.json");
+    const existingRequest = await readJsonOptional(requestFile);
+    if (
+      existingRequest.state === "ready" &&
+      existingRequest.value &&
+      ["queued", "claimed"].includes(existingRequest.value.status) &&
+      existingRequest.value.interpretationId === interpretationId
+    ) {
+      return {
+        status: "creative_queued",
+        runId,
+        runDir,
+        interpretationId,
+        requestId: existingRequest.value.requestId,
+        session: await sessionStatus(),
+      };
+    }
+
     const currentStudio = await readJsonOptional(path.join(runDir, "studio.json"));
     if (
       currentStudio.state === "ready" &&
@@ -526,27 +599,28 @@ export function createV4BridgeService({
       const historyDir = path.join(runDir, "studio-history");
       await fs.mkdir(historyDir, { recursive: true });
       const archived =
-        new Date().toISOString().replace(/[:.]/gu, "-") + ".json";
+        now().toISOString().replace(/[:.]/gu, "-") + ".json";
       await fs.rename(
         path.join(runDir, "studio.json"),
         path.join(historyDir, archived),
       );
     }
 
-    await writeJsonAtomic(path.join(runDir, "browser-creative-request.json"), {
-      schemaVersion: "4.0",
+    const request = requestPayload({
       kind: "creative",
-      status: "prepared",
+      runId,
       interpretationId,
-      createdAt: new Date().toISOString(),
+      now,
     });
+    await writeJsonAtomic(requestFile, request);
 
     return {
-      status: "creative_ready",
+      status: "creative_queued",
       runId,
       runDir,
       interpretationId,
-      antigravityPrompt: creativePrompt(runDir, interpretationId),
+      requestId: request.requestId,
+      session: await sessionStatus(),
     };
   }
 
@@ -554,7 +628,9 @@ export function createV4BridgeService({
     prepare,
     materialize,
     status,
+    sessionStatus,
     requestCreative,
     runsRoot,
+    sessionRoot,
   });
 }
