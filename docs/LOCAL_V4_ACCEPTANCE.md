@@ -58,15 +58,64 @@ Select `music-analysis-orchestrator` as the primary Agent.
 
 Use the Gemini/model configuration you want to benchmark in the Antigravity UI. The specialist Agents use `model: inherit`.
 
+## 3A. 首选：浏览器 / 网易云入口
+
+在 `.env.local` 中：
+
+```bash
+MUSIC_V4_BRIDGE_ENABLED=1
+VITE_MUSIC_V4_ENABLED=1
+
+MUSIC_V3_ENABLED=0
+VITE_MUSIC_V3_ENABLED=0
+MUSIC_V2_ENABLED=0
+VITE_MUSIC_V2_ENABLED=0
+```
+
+启动：
+
+```bash
+npm run dev
+```
+
+打开：
+
+```
+http://127.0.0.1:3000
+```
+
+首选验收流程：
+
+1. 粘贴网易云分享链接；
+2. 确认页面识别出正确歌名/艺人；
+3. 选择或确认 YouTube 录音版本；
+4. 页面显示 `Antigravity Handoff` 和 run ID；
+5. 点击“复制 Antigravity 分析指令”；
+6. 切到已经选择 `music-analysis-orchestrator` 的 Antigravity 会话并粘贴执行；
+7. 回到浏览器，不刷新页面；
+8. 确认 DSP / Listen / Research / Analysis 状态自动更新；
+9. `analysis.json` 完成后，页面自动出现分析模块；
+10. 点击推荐分析点的“在 Studio 里试试这个机制”；
+11. 粘贴新的 Creative 指令到 Antigravity；
+12. `studio.json` 完成后，浏览器自动出现 Strudel A/B 播放器。
+
+浏览器不能通过未公开接口把 prompt 直接注入 Antigravity Desktop，因此当前明确保留一次 copy/paste handoff；它不会在后台重新调用 `agy CLI`。
+
+## 3B. 调试入口：直接本地 MP3
+
+如果要绕开 Browser Bridge 调试 Agent 本身，可以继续直接使用本地音频路径。
+
 ## 4. First benchmark
 
 Use:
 
 `VARLAN - Antagonistic.mp3`
 
-Prompt:
+Direct-debug prompt:
 
 > Analyze this recording with the MusicLearning Research Workflow v4: `/absolute/path/VARLAN - Antagonistic.mp3`. The identity is VARLAN — Antagonistic. Run the three specialist branches concurrently and stop after analysis.json; do not generate Studio yet.
+
+For the product-path acceptance, prefer the browser/NetEase flow in 3A.
 
 ## 5. Concurrency check
 
